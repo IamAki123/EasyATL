@@ -191,3 +191,15 @@ When a tag is visible, Pedro is corrected. When the tag leaves camera view, Pedr
 | Vision pose is consistently offset | Re-measure the camera lens location from robot center. |
 | Pose stops changing when no tag is visible | Expected: vision requires a tag. Let odometry carry the robot until a tag returns. |
 | Pose jumps | Lower `setMaxRangeInches()`, improve camera mount values, or reduce smoothing alpha after confirming tag geometry. |
+
+## Credits
+
+**Akash Vijay Aradhya**
+#23918 Super Sigma Robotics
+
+Built with assistance from:
+- Cursor AI
+- ChatGPT
+- OpenAI Codex in Cursor
+
+AI tools were used as development assistance, including generating, debugging, and refining code. The project was directed, reviewed, tested, and understood by the author.
