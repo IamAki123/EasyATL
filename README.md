@@ -16,7 +16,30 @@ All positions are **inches** and all headings passed to the library are **radian
 
 Use the same field coordinate system that your drive localizer uses. Pedro teams can convert the output directly to `new Pose(x, y, heading)`.
 
-## Install into an FTC SDK project
+## Install with JitPack
+
+In the FTC project's `build.dependencies.gradle` (or wherever your `repositories { }` block lives), add JitPack:
+
+```gradle
+repositories {
+    mavenCentral()
+    google()
+    maven { url = 'https://jitpack.io' }
+}
+```
+
+Then in `TeamCode/build.gradle`:
+
+```gradle
+dependencies {
+    implementation project(':FtcRobotController')
+    implementation 'com.github.IamAki123:EasyATL:1.0.0'
+}
+```
+
+Gradle must run on **Java 11 or newer**. In Android Studio, use the Embedded JDK.
+
+## Install as a local module
 
 1. Copy the complete `EasyATL` directory beside `TeamCode`.
 
