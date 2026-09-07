@@ -1,5 +1,8 @@
 # EasyATL
 
+[![Release](https://img.shields.io/github/v/release/IamAki123/EasyATL)](https://github.com/IamAki123/EasyATL/releases/tag/1.0.0)
+[![JitPack](https://jitpack.io/v/IamAki123/EasyATL.svg)](https://jitpack.io/#IamAki123/EasyATL)
+
 `EasyATL` turns FTC AprilTag detections into a robot field pose: **X**, **Y**, and **heading**. Configure the field pose of each AprilTag and the camera lens pose on the robot; then call `localize()` every OpMode loop.
 
 It supports multiple simultaneous tags, rejects inconsistent detections, smooths accepted measurements, and provides a heuristic quality score. The core math is independent of Pedro Pathing and Road Runner. The FTC adapter works directly with `AprilTagDetection` results.
