@@ -1,6 +1,6 @@
 # EasyATL: FTC April Tag Localizer
 
-[![Release](https://img.shields.io/github/v/release/IamAki123/EasyATL)](https://github.com/IamAki123/EasyATL/releases/tag/1.1.0)
+[![Release](https://img.shields.io/github/v/release/IamAki123/EasyATL)](https://github.com/IamAki123/EasyATL/releases/tag/1.1.1)
 [![JitPack](https://jitpack.io/v/IamAki123/EasyATL.svg)](https://jitpack.io/#IamAki123/EasyATL)
 
 ## Contents
@@ -59,7 +59,7 @@ Then in `TeamCode/build.gradle`:
 ```gradle
 dependencies {
     implementation project(':FtcRobotController')
-    implementation 'com.github.IamAki123:EasyATL:1.1.0'
+    implementation 'com.github.IamAki123:EasyATL:1.1.1'
 }
 ```
 

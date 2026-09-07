@@ -7,22 +7,61 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Multi-tag AprilTag field-pose localizer. Coordinates follow the common FTC/Pedro convention:
- * heading zero points forward along +X, right points -Y, and heading is CCW-positive. All
- * distances are inches. Tag facing headings point out of the printed face toward the camera.
+ * Multi-tag AprilTag field-pose localizer.
+ *
+ * <p>Coordinates follow the common FTC/Pedro convention: heading zero points along field {@code +X},
+ * heading is CCW-positive, and distances are inches. Tag facing headings point out of the printed
+ * face toward the camera.</p>
+ *
+ * <p>FTC teams should usually use {@link FtcEasyATL} instead of constructing observations by hand.</p>
  */
 public final class EasyATL {
-    /** Camera-frame tag observation: right, forward, range, bearing, and yaw. Angles are degrees. */
+    /**
+     * One camera-frame tag measurement. Bearing and yaw are <strong>degrees</strong>; field headings
+     * elsewhere in this API are radians.
+     */
     public static final class Observation {
-        public final int id; public final double right, forward, range, bearingDegrees, yawDegrees;
+        /** AprilTag ID. */
+        public final int id;
+        /** Tag position in the camera frame, inches to the right of the lens. */
+        public final double right;
+        /** Tag position in the camera frame, inches in front of the lens. */
+        public final double forward;
+        /** Distance to the tag, inches. */
+        public final double range;
+        /** Horizontal bearing of the tag in the camera frame, degrees. */
+        public final double bearingDegrees;
+        /** Tag yaw relative to the camera, degrees. */
+        public final double yawDegrees;
+
+        /**
+         * @param id AprilTag ID
+         * @param right inches right of the lens
+         * @param forward inches in front of the lens
+         * @param range distance in inches
+         * @param bearingDegrees camera-frame bearing, degrees
+         * @param yawDegrees tag yaw relative to the camera, degrees
+         */
         public Observation(int id, double right, double forward, double range, double bearingDegrees, double yawDegrees) {
             this.id=id; this.right=right; this.forward=forward; this.range=range;
             this.bearingDegrees=bearingDegrees; this.yawDegrees=yawDegrees;
         }
     }
-    /** Camera lens pose relative to robot center; right/forward in inches and yaw in radians. */
+
+    /** Camera lens pose relative to robot center. */
     public static final class CameraConfig {
-        public final double forward, right, yawRadians;
+        /** Inches from robot center toward robot forward. Negative is behind center. */
+        public final double forward;
+        /** Inches from robot center toward robot right. Negative is left of center. */
+        public final double right;
+        /** Camera yaw relative to robot forward, radians, CCW-positive. */
+        public final double yawRadians;
+
+        /**
+         * @param forward inches forward of robot center
+         * @param right inches right of robot center
+         * @param yawRadians CCW from robot forward; negative yaws the camera right
+         */
         public CameraConfig(double forward, double right, double yawRadians) {
             requireFinite("forward", forward); requireFinite("right", right); requireFinite("yawRadians", yawRadians);
             this.forward=forward; this.right=right; this.yawRadians=yawRadians;
@@ -31,8 +70,9 @@ public final class EasyATL {
 
     /**
      * Tunable localization pipeline. Defaults match the original EasyATL behavior.
-     * Detection filtering, outlier rejection, smoothing, and quality decay are grouped here;
-     * per-tag range/angle weights stay internal.
+     *
+     * <p>Copied when passed into a localizer, so later edits to this object do not apply until
+     * {@link EasyATL#setConfig(Config)}.</p>
      */
     public static final class Config {
         public static final double DEFAULT_MAX_RANGE_INCHES = 96;
@@ -51,46 +91,100 @@ public final class EasyATL {
         private double smoothingAlpha = DEFAULT_SMOOTHING_ALPHA;
         private double qualityDecayRate = DEFAULT_QUALITY_DECAY_RATE;
 
+        /**
+         * Rejects detections farther than this range.
+         *
+         * @param value inches; must be finite and {@code > 0}
+         * @return {@code this}
+         */
         public Config setMaxRangeInches(double value) {
             maxRangeInches = requirePositive("max range", value);
             return this;
         }
+
+        /**
+         * Rejects detections whose absolute bearing exceeds this limit.
+         *
+         * @param value degrees; must be finite and {@code >= 0}
+         * @return {@code this}
+         */
         public Config setMaxBearingDegrees(double value) {
             maxBearingDegrees = requireNonNegative("max bearing", value);
             return this;
         }
+
+        /**
+         * Rejects detections whose absolute tag yaw exceeds this limit.
+         *
+         * @param value degrees; must be finite and {@code >= 0}
+         * @return {@code this}
+         */
         public Config setMaxTagYawDegrees(double value) {
             maxTagYawDegrees = requireNonNegative("max tag yaw", value);
             return this;
         }
+
+        /**
+         * Drops multi-tag estimates farther than this from the robust consensus.
+         *
+         * @param value inches; must be finite and {@code > 0}
+         * @return {@code this}
+         */
         public Config setOutlierDistanceInches(double value) {
             outlierDistanceInches = requirePositive("outlier distance", value);
             return this;
         }
+
+        /**
+         * Drops multi-tag estimates whose heading disagrees with the consensus by more than this.
+         *
+         * @param value degrees; must be finite and {@code > 0}
+         * @return {@code this}
+         */
         public Config setOutlierHeadingDegrees(double value) {
             outlierHeadingDegrees = requirePositive("outlier heading", value);
             return this;
         }
-        /** 1.0 disables temporal smoothing; lower values are steadier but lag more. */
+
+        /**
+         * Blend of a new accepted pose versus the previous pose. {@code 1.0} disables smoothing.
+         *
+         * @param value clamped to {@code [0, 1]}
+         * @return {@code this}
+         */
         public Config setSmoothingAlpha(double value) {
             requireFinite("smoothing alpha", value);
             smoothingAlpha = clamp(value, 0, 1);
             return this;
         }
-        /** Exponential quality decay per second while no new pose is accepted. 0 keeps quality frozen. */
+
+        /**
+         * Exponential quality decay per second while no new pose is accepted. {@code 0} freezes quality.
+         *
+         * @param value must be finite and {@code >= 0}
+         * @return {@code this}
+         */
         public Config setQualityDecayRate(double value) {
             qualityDecayRate = requireNonNegative("quality decay rate", value);
             return this;
         }
 
+        /** @return maximum accepted range, inches */
         public double getMaxRangeInches() { return maxRangeInches; }
+        /** @return maximum accepted absolute bearing, degrees */
         public double getMaxBearingDegrees() { return maxBearingDegrees; }
+        /** @return maximum accepted absolute tag yaw, degrees */
         public double getMaxTagYawDegrees() { return maxTagYawDegrees; }
+        /** @return XY outlier threshold, inches */
         public double getOutlierDistanceInches() { return outlierDistanceInches; }
+        /** @return heading outlier threshold, degrees */
         public double getOutlierHeadingDegrees() { return outlierHeadingDegrees; }
+        /** @return pose blend factor in {@code [0, 1]} */
         public double getSmoothingAlpha() { return smoothingAlpha; }
+        /** @return quality decay rate per second */
         public double getQualityDecayRate() { return qualityDecayRate; }
 
+        /** @return an independent copy of these settings */
         public Config copy() {
             return new Config()
                     .setMaxRangeInches(maxRangeInches)
@@ -114,23 +208,81 @@ public final class EasyATL {
     private double confidence;
     private long lastConfidenceTime;
 
+    /**
+     * Fuses AprilTag observations into a field-relative robot pose.
+     *
+     * <p>Supports multiple simultaneous tags, robust outlier rejection, pose smoothing, and
+     * heuristic quality scoring. Uses {@link Config} defaults.</p>
+     *
+     * @param camera camera lens pose relative to the robot center
+     */
     public EasyATL(CameraConfig camera) { this(camera, new Config()); }
+
+    /**
+     * @param camera camera lens pose relative to the robot center
+     * @param config pipeline thresholds; copied on construction
+     */
     public EasyATL(CameraConfig camera, Config config) {
         this.camera=requireCamera(camera);
         this.config=requireConfig(config).copy();
     }
+
+    /**
+     * Registers a field AprilTag. Re-adding the same ID overwrites the previous pose.
+     *
+     * @param id AprilTag ID
+     * @param x tag center field X, inches
+     * @param y tag center field Y, inches
+     * @param facingHeadingRadians direction out of the printed face toward the camera, radians, CCW-positive
+     * @return {@code this}
+     */
     public EasyATL addTag(int id,double x,double y,double facingHeadingRadians) {
         requireFinite("field x", x); requireFinite("field y", y); requireFinite("facing heading", facingHeadingRadians);
         tags.put(id,new Tag(x,y,facingHeadingRadians)); return this;
     }
+
+    /**
+     * Replaces the camera mount after construction.
+     *
+     * @param value new lens pose
+     * @return {@code this}
+     */
     public EasyATL setCameraConfig(CameraConfig value) { camera=requireCamera(value); return this; }
+
+    /**
+     * Replaces pipeline settings. The object is copied.
+     *
+     * @param value new config
+     * @return {@code this}
+     */
     public EasyATL setConfig(Config value) { config=requireConfig(value).copy(); return this; }
+
+    /** @return a copy of the active pipeline settings */
     public Config getConfig() { return config.copy(); }
+
+    /**
+     * Convenience writer for {@link Config#setMaxRangeInches(double)}.
+     *
+     * @return {@code this}
+     */
     public EasyATL setMaxRangeInches(double value) { config.setMaxRangeInches(value); return this; }
-    /** 1.0 disables temporal smoothing; lower values are steadier but lag more. */
+
+    /**
+     * Convenience writer for {@link Config#setSmoothingAlpha(double)}.
+     *
+     * @return {@code this}
+     */
     public EasyATL setSmoothingAlpha(double value) { config.setSmoothingAlpha(value); return this; }
 
-    /** Combines all usable configured tags in the frame. True means a new pose was accepted. */
+    /**
+     * Fuses configured, in-range, consistent tags from this frame.
+     *
+     * <p>{@code null} is treated as an empty list. Unconfigured IDs are ignored. On failure the last
+     * pose is kept and {@link #getQuality()} begins decaying.</p>
+     *
+     * @param observations camera-frame detections for this frame
+     * @return {@code true} if a new pose was accepted
+     */
     public boolean localize(List<Observation> observations) {
         long now=System.nanoTime(); decayConfidence(now);
         if(observations==null) observations=Collections.emptyList();
@@ -149,13 +301,34 @@ public final class EasyATL {
         confidence=clamp(quality*((double)inliers.size()/estimates.size())*Math.min(1,.75+.125*inliers.size()),0,1); lastConfidenceTime=now;
         return true;
     }
+
+    /**
+     * Latest smoothed vision pose, or {@code null} if none has been accepted yet.
+     * Frozen after tags are lost until the next accepted frame.
+     */
     public FieldPose getPose(){return pose;}
+
+    /** @return {@code true} after at least one pose has been accepted */
     public boolean hasPose(){return pose!=null;}
-    /** Configured tags seen in the latest frame, even if rejected by quality checks. */
+
+    /**
+     * Configured tag IDs seen in the latest {@link #localize(List)} call, including those later
+     * rejected by range, angle, or outlier checks.
+     */
     public List<Integer> getVisibleTags(){return visibleTags;}
+
+    /**
+     * Tag IDs that contributed to the pose on the latest {@link #localize(List)} call.
+     * Empty when that call returned {@code false}.
+     */
     public List<Integer> getAcceptedTags(){return acceptedTags;}
-    /** Heuristic 0..1 measurement quality; it is not a probability and decays while tags are lost. */
+
+    /**
+     * Heuristic measurement quality in {@code [0, 1]}. Not a probability; decays while no new pose
+     * is accepted. Read after {@link #localize(List)}.
+     */
     public double getQuality(){decayConfidence(System.nanoTime());return confidence;}
+
     /** @deprecated Use {@link #getQuality()}; this is a quality score, not calibrated confidence. */
     @Deprecated public double getConfidence(){return getQuality();}
 
