@@ -1,4 +1,4 @@
-# EasyATL
+# EasyATL: FTC April Tag Localizer
 
 [![Release](https://img.shields.io/github/v/release/IamAki123/EasyATL)](https://github.com/IamAki123/EasyATL/releases/tag/1.0.0)
 [![JitPack](https://jitpack.io/v/IamAki123/EasyATL.svg)](https://jitpack.io/#IamAki123/EasyATL)
