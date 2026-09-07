@@ -11,12 +11,25 @@ public final class FtcEasyATL {
     private final EasyATL delegate;
 
     public FtcEasyATL(EasyATL.CameraConfig camera) {
-        delegate = new EasyATL(camera);
+        this(camera, new EasyATL.Config());
+    }
+
+    public FtcEasyATL(EasyATL.CameraConfig camera, EasyATL.Config config) {
+        delegate = new EasyATL(camera, config);
     }
 
     public FtcEasyATL addTag(int id, double x, double y, double facing) {
         delegate.addTag(id, x, y, facing);
         return this;
+    }
+
+    public FtcEasyATL setConfig(EasyATL.Config config) {
+        delegate.setConfig(config);
+        return this;
+    }
+
+    public EasyATL.Config getConfig() {
+        return delegate.getConfig();
     }
 
     public FtcEasyATL setMaxRangeInches(double value) {
