@@ -679,22 +679,11 @@ public class EasyATLSample extends OpMode {
 
 Install the version you want with JitPack, for example `implementation 'com.github.IamAki123:EasyATL:1.1.1'`.
 
-### 1.1.1
-
-Documentation patch. Localization behavior is unchanged from 1.1.0.
-
-- Javadocs on the public API for IDE autocomplete (`EasyATL`, `FtcEasyATL`, `FieldPose`, `Config`, `CameraConfig`, `Observation`)
-
-### 1.1.0
-
-Compatible feature release. `new FtcEasyATL(camera)` still uses the same defaults as 1.0.0.
-
-- `EasyATL.Config` for detection filtering, outlier rejection, smoothing, and quality decay
-- Tuning guide, default table, and sample Pedro TeleOp in this README
-
-### 1.0.0
-
-First public release. Compiles against FTC SDK 11.1.0.
+| Version | Type | Notes |
+| --- | --- | --- |
+| **1.1.1** | Docs | Javadocs on the public API for IDE autocomplete. Localization behavior is unchanged from 1.1.0. |
+| **1.1.0** | Feature | `EasyATL.Config` (filtering, outliers, smoothing, quality decay). Tuning guide, defaults table, and sample Pedro TeleOp. Defaults match 1.0.0. |
+| **1.0.0** | Release | First public release. Compiles against FTC SDK 11.1.0. |
 
 ## Credits
 
