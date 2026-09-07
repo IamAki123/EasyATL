@@ -16,6 +16,12 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    testOptions {
+        unitTests.all {
+            it.jvmArgs '-Djava.awt.headless=true'
+        }
+    }
+
     publishing {
         singleVariant('release') {
             withSourcesJar()
@@ -29,6 +35,9 @@ android {
 dependencies {
     compileOnly 'org.firstinspires.ftc:Vision:11.1.0'
     compileOnly 'org.firstinspires.ftc:RobotCore:11.1.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.firstinspires.ftc:Vision:11.1.0'
+    testImplementation 'org.firstinspires.ftc:RobotCore:11.1.0'
 }
 
 afterEvaluate {

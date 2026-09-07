@@ -2,18 +2,36 @@
 
 [![Release](https://img.shields.io/github/v/release/IamAki123/EasyATL)](https://github.com/IamAki123/EasyATL/releases/tag/1.1.1)
 [![JitPack](https://jitpack.io/v/IamAki123/EasyATL.svg)](https://jitpack.io/#IamAki123/EasyATL)
+[![Tests](https://github.com/IamAki123/EasyATL/actions/workflows/tests.yml/badge.svg)](https://github.com/IamAki123/EasyATL/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/github/license/IamAki123/EasyATL)](LICENSE)
+
+**AprilTag detections → field-relative robot pose (X, Y, heading).**
+
+```java
+FtcEasyATL localizer = new FtcEasyATL(new EasyATL.CameraConfig(0.75, 0.25, Math.toRadians(-4)))
+        .addTag(21, 8, 8, Math.toRadians(45));
+boolean accepted = localizer.localize(aprilTag.getDetections());
+if (accepted) {
+    FieldPose pose = localizer.getPose(); // inches, heading radians
+}
+```
+
+Current JitPack version: **1.1.1** — `implementation 'com.github.IamAki123:EasyATL:1.1.1'`
 
 ## Contents
 
-- [About EasyATL](#about-easyatl)
+- [Why EasyATL?](#why-easyatl)
+- [Architecture](#architecture)
+- [Limitations](#limitations)
 - [Coordinate convention](#coordinate-convention)
 - [Install with JitPack](#install-with-jitpack)
 - [Install as a local module](#install-as-a-local-module)
-- [TeleOp setup](#teleop-setup)
-- [Update every loop](#update-every-loop)
-- [First test: telemetry only](#first-test-telemetry-only)
-- [Correcting Pedro after validation](#correcting-pedro-after-validation)
-- [Quality and filtering](#quality-and-filtering)
+- [Configure camera and tags](#configure-camera-and-tags)
+- [Get the robot pose](#get-the-robot-pose)
+- [Use with Pedro](#use-with-pedro)
+- [What quality means](#what-quality-means)
+- [API examples](#api-examples)
+- [If the values are wrong](#if-the-values-are-wrong)
 - [Configuration vs tuning](#configuration-vs-tuning)
   - [Default configuration](#default-configuration)
 - [Tuning EasyATL](#tuning-easyatl)
@@ -25,8 +43,47 @@
 - [Changelog](#changelog)
 - [Credits](#credits)
 
+## Why EasyATL?
+
+FTC AprilTag detections are **camera-frame measurements** (range, bearing, yaw, and offset). Drive code needs a **field-relative robot pose**. EasyATL is that conversion, with filtering so one bad tag does not yank the estimate.
+
+What it actually does:
+
+- Multi-tag fusion
+- Range / bearing / yaw rejection (configurable)
+- Outlier rejection when tags disagree
+- Pose smoothing
+- Heuristic quality that decays when tags are lost
+- `FtcEasyATL` adapter for `AprilTagDetection`
+- Core math in `EasyATL` with no Pedro or Road Runner dependency
+
+It does **not** replace odometry. Use vision when a tag is accepted; let your drive localizer run the rest of the time.
+
+## Architecture
+
+```text
+AprilTagDetection (FTC SDK)
+        ↓
+   FtcEasyATL          maps ftcPose → Observation
+        ↓
+   EasyATL.Observation (camera-frame: right, forward, range, bearing°, yaw°)
+        ↓
+     EasyATL           filter → per-tag pose → outlier reject → smooth
+        ↓
+     FieldPose         field X, Y (inches), heading (radians)
+```
+
+You can call `EasyATL` directly if you already have observations. Most teams only use `FtcEasyATL`.
+
+## Limitations
+
+- Accuracy depends on **camera calibration**, **tag detection quality**, **tag field poses**, and **lens measurements**.
+- `Config` values must be **tuned per robot**; there is no universal best set.
+- `getQuality()` is a heuristic in `[0, 1]`, not a probability.
+- Tape-measure the result on **your** field before correcting Pedro. Do not use unpublished “average error” claims.
 
 ## About EasyATL
+
 
 `EasyATL` turns FTC AprilTag detections into a robot field pose: **X**, **Y**, and **heading**. Configure the field pose of each AprilTag and the camera lens pose on the robot; then call `localize()` every OpMode loop.
 
@@ -97,7 +154,7 @@ Gradle must run on **Java 11 or newer**. In Android Studio, use the Embedded JDK
 
 4. In Android Studio, set the Gradle JDK to Java 11 or newer (Embedded JDK is fine), then run **Sync Project with Gradle Files**.
 
-## TeleOp setup
+## Configure camera and tags
 
 This example assumes you already have an FTC `AprilTagProcessor` or a wrapper whose `getDetectedTags()` returns `List<AprilTagDetection>`. In this project, `AprilTagWebcam` provides that list. A full Pedro TeleOp is in [Sample OpMode](#sample-opmode).
 
@@ -161,7 +218,7 @@ Examples:
 - Camera points left: use positive yaw.
 - Camera points right: use negative yaw.
 
-## Update every loop
+## Get the robot pose
 
 Call your webcam update first, then localize using that frame’s detections:
 
@@ -182,7 +239,7 @@ if (localizer.hasPose()) {
 
 `accepted` is true only for a new, reliable vision estimate. When tags are lost, the last vision pose remains available and `getQuality()` decays; no new correction is accepted.
 
-## First test: telemetry only
+## If the values are wrong
 
 Do **not** set your odometry/localizer pose immediately. Place the robot at several measured field positions, point it at known headings, and compare the printed `Vision pose` to the real robot pose.
 
@@ -193,22 +250,18 @@ Check:
 3. Camera forward/right offset and yaw match the physical mount.
 4. Vision X/Y/heading are sensible at multiple distances and headings.
 
-### If the values are wrong
-
-**Do not tune the filtering parameters yet.** First verify that the underlying geometry and coordinate setup are correct.
+**Do not tune filtering parameters yet.** Filters hide bad geometry; they do not correct a wrong tag map or camera mount.
 
 Check these in order:
 
-1. **Constant position offset:** Verify the camera's physical forward/right offsets and tag field coordinates.
-2. **Rotated or mirrored position:** Verify the camera yaw and coordinate conventions.
-3. **Incorrect heading:** Verify the tag's `facingHeading` and camera yaw.
-4. **Errors that change with distance or angle:** Verify the camera mounting and AprilTag detection quality.
+1. **Constant position offset:** camera forward/right offsets and tag field coordinates.
+2. **Rotated or mirrored position:** camera yaw and coordinate conventions.
+3. **Incorrect heading:** tag `facingHeading` and camera yaw.
+4. **Errors that change with distance or angle:** camera mounting and AprilTag detection quality.
 
-After correcting any geometry or configuration errors, repeat the telemetry-only test at multiple known positions and headings.
+After correcting geometry, repeat the telemetry-only test at multiple known positions and headings. Only then tune `maxRange`, `maxBearing`, `maxTagYaw`, outlier thresholds, and `smoothingAlpha`.
 
-Only once the raw vision pose is consistently sensible should you tune parameters such as `maxRange`, `maxBearing`, `maxTagYaw`, outlier thresholds, and `smoothingAlpha`.
-
-## Correcting Pedro after validation
+## Use with Pedro
 
 Once the measurements have been validated, apply a correction only when a fresh, quality-approved frame is accepted:
 
@@ -227,7 +280,7 @@ if (accepted && localizer.getQuality() >= 0.20) {
 
 When a tag is visible, Pedro is corrected. When the tag leaves camera view, Pedro keeps updating with odometry. When a tag becomes visible again, Pedro receives another correction.
 
-## Quality and filtering
+## What quality means
 
 - Only configured tag IDs are used.
 - Detection limits, outlier limits, smoothing, and quality decay live on `EasyATL.Config` (see defaults below).
@@ -235,6 +288,37 @@ When a tag is visible, Pedro is corrected. When the tag leaves camera view, Pedr
 - A robust medoid is used before averaging to reject inconsistent tag estimates.
 - `setSmoothingAlpha(1.0)` disables smoothing; lower values reduce noise but add lag.
 - `getQuality()` is a heuristic score from 0 to 1, not a calibrated probability. It decays while no new pose is accepted. `getConfidence()` is a deprecated compatibility alias.
+
+## API examples
+
+**Camera and pipeline**
+
+```java
+EasyATL.CameraConfig camera = new EasyATL.CameraConfig(0.75, 0.25, Math.toRadians(-4));
+EasyATL.Config config = new EasyATL.Config()
+        .setMaxRangeInches(72)
+        .setSmoothingAlpha(0.70);
+```
+
+**FTC adapter (typical)**
+
+```java
+FtcEasyATL localizer = new FtcEasyATL(camera, config)
+        .addTag(21, 8, 8, Math.toRadians(45));
+boolean accepted = localizer.localize(aprilTag.getDetections());
+FieldPose pose = localizer.getPose();
+double quality = localizer.getQuality();
+```
+
+**Core only (no FTC types)**
+
+```java
+EasyATL localizer = new EasyATL(camera, config).addTag(21, 8, 8, Math.toRadians(45));
+localizer.localize(observations);
+FieldPose pose = localizer.getPose();
+```
+
+`FieldPose` is inches and radians: `pose.x`, `pose.y`, `pose.heading`. For Pedro after validation: `new Pose(pose.x, pose.y, pose.heading)`.
 
 ## Configuration vs tuning
 
@@ -287,6 +371,12 @@ Per-tag range/angle weights are not configurable. If a detection is geometricall
 ### Measuring accuracy
 
 EasyATL does not ship published field-error numbers: those depend on your camera, calibration, mount, lighting, and tag map. Measure on **your** robot.
+
+Record a sheet with these columns when you have robot access (several distances, headings, one-tag and multi-tag):
+
+| Actual X | Actual Y | Actual heading | EasyATL X | EasyATL Y | EasyATL heading | Position error | Heading error | Visible | Accepted | Quality |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | | | | | | | | | | |
 
 Disable drive correction while recording. For each trial, park at a known pose, call `localize()`, and log the difference:
 
@@ -540,10 +630,10 @@ new FieldPose(double x, double y, double heading)
 | Symptom | Check |
 | --- | --- |
 | `easyatl` cannot resolve | Confirm the module is in `settings.gradle`, the TeamCode dependency is present, and Gradle sync completed. |
-| Vision pose is mirrored/rotated | Recheck tag facing heading and camera yaw sign. |
-| Vision pose is consistently offset | Re-measure the camera lens location from robot center. |
+| Vision pose is mirrored/rotated | Recheck tag facing heading and camera yaw sign **before** changing filter limits. |
+| Vision pose is consistently offset | Re-measure the camera lens location from robot center. Wrong `CameraConfig` or tag field pose cannot be fixed by tuning range/bearing. |
 | Pose stops changing when no tag is visible | Expected: vision requires a tag. Let odometry carry the robot until a tag returns. |
-| Pose jumps | Confirm tag geometry and camera mount, then tighten range/bearing/yaw or outlier limits, or lower `smoothingAlpha`. |
+| Pose jumps | First confirm tag geometry and camera mount. Only then tighten range/bearing/yaw or outlier limits, or lower `smoothingAlpha`. |
 
 ## Sample OpMode
 
@@ -692,7 +782,7 @@ public class EasyATLSample extends OpMode {
 
 ## Changelog
 
-Install the version you want with JitPack, for example `implementation 'com.github.IamAki123:EasyATL:1.1.1'`.
+Full notes: [CHANGELOG.md](CHANGELOG.md). Install with the git tag, currently `1.1.1`.
 
 | Version | Type | Notes |
 | --- | --- | --- |

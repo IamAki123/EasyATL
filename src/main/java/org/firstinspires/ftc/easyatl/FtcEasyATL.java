@@ -90,12 +90,18 @@ public final class FtcEasyATL {
         if (detections == null) return delegate.localize(Collections.<EasyATL.Observation>emptyList());
         List<EasyATL.Observation> values = new ArrayList<>();
         for (AprilTagDetection detection : detections) {
-            if (detection.ftcPose == null) continue;
-            values.add(new EasyATL.Observation(detection.id, detection.ftcPose.x,
-                    detection.ftcPose.y, detection.ftcPose.range, detection.ftcPose.bearing,
-                    detection.ftcPose.yaw));
+            EasyATL.Observation observation = observationOrNull(detection);
+            if (observation != null) values.add(observation);
         }
         return delegate.localize(values);
+    }
+
+    /** Package-visible mapping used by unit tests. {@code null} if {@code ftcPose} is missing. */
+    static EasyATL.Observation observationOrNull(AprilTagDetection detection) {
+        if (detection == null || detection.ftcPose == null) return null;
+        return new EasyATL.Observation(detection.id, detection.ftcPose.x,
+                detection.ftcPose.y, detection.ftcPose.range, detection.ftcPose.bearing,
+                detection.ftcPose.yaw);
     }
 
     /** @see EasyATL#getPose() */
