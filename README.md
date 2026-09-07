@@ -193,6 +193,21 @@ Check:
 3. Camera forward/right offset and yaw match the physical mount.
 4. Vision X/Y/heading are sensible at multiple distances and headings.
 
+### If the values are wrong
+
+**Do not tune the filtering parameters yet.** First verify that the underlying geometry and coordinate setup are correct.
+
+Check these in order:
+
+1. **Constant position offset:** Verify the camera's physical forward/right offsets and tag field coordinates.
+2. **Rotated or mirrored position:** Verify the camera yaw and coordinate conventions.
+3. **Incorrect heading:** Verify the tag's `facingHeading` and camera yaw.
+4. **Errors that change with distance or angle:** Verify the camera mounting and AprilTag detection quality.
+
+After correcting any geometry or configuration errors, repeat the telemetry-only test at multiple known positions and headings.
+
+Only once the raw vision pose is consistently sensible should you tune parameters such as `maxRange`, `maxBearing`, `maxTagYaw`, outlier thresholds, and `smoothingAlpha`.
+
 ## Correcting Pedro after validation
 
 Once the measurements have been validated, apply a correction only when a fresh, quality-approved frame is accepted:
