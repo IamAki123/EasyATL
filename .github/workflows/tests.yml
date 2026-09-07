@@ -15,4 +15,6 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
       - name: Run unit tests
-        run: ./gradlew test --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew test --no-daemon
