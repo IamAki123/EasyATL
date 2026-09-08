@@ -2,14 +2,17 @@
 
 All notable releases are listed here. Install with JitPack using the **git tag** as the version:
 
-`implementation 'com.github.IamAki123:EasyATL:1.1.1'`
+`implementation 'com.github.IamAki123:EasyATL:1.1.2'`
 
 ## Unreleased
 
-- Unit tests for `EasyATL` (known-pose round-trips, filters, outliers, smoothing, quality decay)
-- Unit tests for `FtcEasyATL` pose mapping
-- GitHub Actions (`./gradlew test` on push and pull request)
-- CONTRIBUTING, issue/PR templates, SECURITY.md
+## 1.1.2
+
+Documentation and practice-tuner workflow. Localization behavior is unchanged from 1.1.1.
+
+- First-time README path and docs under `docs/` (install, sample OpMode, tuning, API, troubleshooting)
+- Copy-into-TeamCode `EasyATLConstants` and `EasyATLTuning` (flat D-pad list: up/down move, right select, left back)
+- CONTRIBUTING notes for JDK 17+ and Android SDK
 
 ## 1.1.1
 
