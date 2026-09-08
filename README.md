@@ -1,3 +1,5 @@
+# <img src="EasyATLLogo.png" alt="EasyATL Logo" width="40" valign="middle"/> EasyATL
+
 # EasyATL
 
 FTC AprilTag localization, simplified.
