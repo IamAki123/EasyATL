@@ -1,7 +1,5 @@
 # <img src="EasyATLLogo.png" alt="EasyATL Logo" width="40" valign="middle"/> EasyATL
 
-# EasyATL
-
 FTC AprilTag localization, simplified.
 
 [![Release](https://img.shields.io/github/v/release/IamAki123/EasyATL)](https://github.com/IamAki123/EasyATL/releases)
