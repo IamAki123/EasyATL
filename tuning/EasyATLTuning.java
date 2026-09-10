@@ -104,6 +104,22 @@ public class EasyATLTuning extends SelectableOpMode {
         }
     }
 
+    static void printDebug(OpMode opMode) {
+        EasyATL.DebugFrame debug = localizer.getDebug();
+        if (debug.uncertainty != null) {
+            opMode.telemetry.addData("Residual", "%.1f in, %.1f deg",
+                    debug.uncertainty.residualInches,
+                    Math.toDegrees(debug.uncertainty.residualHeadingRadians));
+        }
+        for (EasyATL.TagDebug tag : debug.tags) {
+            if (tag.rejectReason != null) {
+                opMode.telemetry.addData("Tag " + tag.id, "REJECT %s  w=%.2f", tag.rejectReason, tag.weight);
+            } else {
+                opMode.telemetry.addData("Tag " + tag.id, "OK  w=%.2f", tag.weight);
+            }
+        }
+    }
+
     static void printSnippet(OpMode opMode) {
         opMode.telemetry.addLine("--- copy into Config ---");
         opMode.telemetry.addLine(String.format(Locale.US,
@@ -113,8 +129,8 @@ public class EasyATLTuning extends SelectableOpMode {
                 ".setOutlierDistanceInches(%.0f).setOutlierHeadingDegrees(%.0f)",
                 config.getOutlierDistanceInches(), config.getOutlierHeadingDegrees()));
         opMode.telemetry.addLine(String.format(Locale.US,
-                ".setSmoothingAlpha(%.2f).setQualityDecayRate(%.2f)",
-                config.getSmoothingAlpha(), config.getQualityDecayRate()));
+                ".setSmoothingAlpha(%.2f).setQualityDecayRate(%.2f).setWeightRangeScaleInches(%.0f)",
+                config.getSmoothingAlpha(), config.getQualityDecayRate(), config.getWeightRangeScaleInches()));
     }
 
     static double bump(Gamepad g, double value, double small, double large, double min, double max) {
@@ -141,6 +157,7 @@ class VisionTelemetry extends OpMode {
         EasyATLTuning.drive(gamepad1);
         telemetry.addLine("Telemetry only. Does not set Pedro pose.");
         EasyATLTuning.printPose(this);
+        EasyATLTuning.printDebug(this);
         EasyATLTuning.printDetections(this);
         telemetry.update();
     }

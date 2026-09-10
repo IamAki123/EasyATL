@@ -23,7 +23,7 @@ On Windows use `gradlew.bat`. Android SDK is required because this is an Android
 4. Run `./gradlew test`.
 5. Open a pull request. Describe what changed and why.
 
-Public API changes should include Javadoc and a note in [docs/API.md](docs/API.md). Localization math should include a unit test with a known pose and generated observations (see `KnownPoses` and `EasyATLTest`).
+Public API changes should include Javadoc and a note in [docs/API.md](docs/API.md). Localization math should include a unit test with a known pose and generated observations (see `KnownPoses` and `EasyATLTest`) and a short note in [docs/Math.md](docs/Math.md) if the formula changed.
 
 ## Bugs
 

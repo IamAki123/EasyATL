@@ -1,12 +1,12 @@
 # Sample Pedro TeleOp
 
-[README](../README.md) · [Install](Install.md) · [Tuning](Tuning.md)
+[README](../README.md) · [Install](Install.md) · [Tuning](Tuning.md) · [SDK sample](SampleOpModeSdk.md)
 
 A drivetrain + camera test you copy into **TeamCode**. It does not configure tags or filters; those live in [`EasyATLConstants`](../tuning/EasyATLConstants.java).
 
 ## Before you paste this
 
-1. [Install](Install.md) EasyATL **1.1.2** and sync Gradle.
+1. [Install](Install.md) EasyATL **1.2.0** and sync Gradle.
 2. Copy `EasyATLConstants.java` into TeamCode. Point `createWebcam` / `createFollower` at **your** classes (the file ships with Super Sigma placeholders).
 3. Tape-measure camera lens vs robot center and every tag’s field X/Y/facing. Put those numbers in Constants.
 4. Keep `APPLY_VISION_CORRECTION = false` until Driver Station vision pose matches tape.

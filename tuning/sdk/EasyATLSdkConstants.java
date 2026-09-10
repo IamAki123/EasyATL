@@ -1,28 +1,24 @@
 package org.firstinspires.ftc.teamcode.easyatl;
 
-import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
+import org.firstinspires.ftc.easyatl.DefaultSdkConstants;
 import org.firstinspires.ftc.easyatl.EasyATL;
 import org.firstinspires.ftc.easyatl.FieldTags;
 import org.firstinspires.ftc.easyatl.FtcEasyATL;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-// Replace these two imports with your team's webcam helper and Pedro Constants.
-import org.firstinspires.ftc.teamcode.Mechanisms.AprilTagWebcam;
-import org.firstinspires.ftc.teamcode.OFSB1.Constants;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 /**
- * EasyATL-only robot setup. {@link EasyATLTuning} and match OpModes should read camera, tags,
- * {@link EasyATL.Config}, webcam, and Pedro follower from here so those values are not copied
- * into every TeleOp.
- *
- * <p>Keep drivetrain PID, motor names, and other non-vision settings in your existing Pedro
- * {@code Constants} (this class calls {@code Constants.createFollower}). Do not dump the whole
- * robot into this file.</p>
+ * Optional TeamCode override of {@link org.firstinspires.ftc.easyatl.DefaultSdkConstants}.
+ * Copy into TeamCode and point the sample/tuner at <em>this</em> class to change lens offsets,
+ * webcam name, or tags. If you never copy this file, the AAR defaults still compile and run.
  */
-public final class EasyATLConstants {
-    private EasyATLConstants() {}
+public final class EasyATLSdkConstants {
+    private EasyATLSdkConstants() {}
+
+    public static final String WEBCAM_NAME = "Webcam 1";
 
     /**
      * Lens vs robot center. Tape these. {@code 0} yaw = optical axis pointed robot-forward.
@@ -49,45 +45,32 @@ public final class EasyATLConstants {
                 .setWeightRangeScaleInches(36);
     }
 
-    public static Pose startingPose() {
-        return new Pose(0, 0, 0);
+    public static AprilTagProcessor createProcessor() {
+        return DefaultSdkConstants.createProcessor();
     }
 
-    public static Follower createFollower(HardwareMap hardwareMap) {
-        Follower follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(startingPose());
-        return follower;
+    public static VisionPortal createPortal(HardwareMap hardwareMap, AprilTagProcessor processor,
+            Telemetry telemetry) {
+        return DefaultSdkConstants.createPortal(hardwareMap, processor, telemetry, WEBCAM_NAME);
     }
 
-    public static AprilTagWebcam createWebcam(HardwareMap hardwareMap, Telemetry telemetry) {
-        AprilTagWebcam webcam = new AprilTagWebcam();
-        webcam.init(hardwareMap, telemetry);
-        return webcam;
-    }
-
-    /** Localizer using {@link #camera()}, the given pipeline, and {@link #addTags(FtcEasyATL)}. */
+    /** Newest bundled season. Swap one line in {@link #addTags} for a past game or custom tags. */
     public static FtcEasyATL createLocalizer(EasyATL.Config pipeline) {
         FtcEasyATL localizer = new FtcEasyATL(camera(), pipeline);
         addTags(localizer);
         return localizer;
     }
 
-    /**
-     * Field AprilTags. Default is the newest bundled season. Swap one line for a past game
-     * or {@link #customAprilTags()}.
-     */
     public static void addTags(FtcEasyATL localizer) {
         localizer.useLatestSeason();
         // localizer.useSeason(FieldTags.Season.INTO_THE_DEEP);
         // localizer.useFieldSet(customAprilTags());
-        // localizer.addCurrentGameTags(); // installed SDK library instead of the hardcoded table
+        // localizer.addCurrentGameTags();
     }
 
-    /** Practice-field or homemade tags. Used when you uncomment {@code useFieldSet(customAprilTags())}. */
     public static FieldTags customAprilTags() {
         return FieldTags.custom("Practice field")
                 .add(21, 8, 8, Math.toRadians(45), "left wall")
-                // .add(22, 72, 8, Math.toRadians(90), "audience")
                 .build();
     }
 }

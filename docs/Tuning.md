@@ -1,24 +1,32 @@
 # Tuning EasyATL
 
-[README](../README.md) · [copy-in files](../tuning/README.md) · [Sample OpMode](SampleOpMode.md)
+[README](../README.md) · [Pedro files](../tuning/README.md) · [SDK files](../tuning/sdk/README.md) · [Sample OpMode](SampleOpMode.md)
 
-`EasyATLTuning` is for the practice field or pit. Do not select it during a match. Match TeleOp and auto should call `FtcEasyATL.localize(...)`.
+`EasyATLTuning` (Pedro) and `EasyATLSdkTuner` (plain FTC SDK) are for the practice field or pit. Do not select them during a match. Match TeleOp and auto should call `FtcEasyATL.localize(...)`.
 
-> **Geometry first.** Filtering cannot fix a wrong camera mount, camera yaw, or AprilTag field pose. Confirm IDs, tag X/Y/facing, and lens forward/right/yaw with a tape (and **Vision telemetry**) before turning knobs.
+> **Geometry first.** Filtering cannot fix a wrong camera mount, camera yaw/**pitch**, or AprilTag field pose. Confirm IDs, tag X/Y/facing, and **lens** forward/right/yaw/pitch with a tape (and **Vision telemetry**) before turning knobs. The housing is not the lens.
+
+**On this page:** [Copy these files](#copy-these-files) · [AAR defaults](#aar-defaults-no-constants-file) · [Where to switch](#where-to-switch-to-easyatlsdkconstants) · [Pick a test](#pick-a-test-before-play) · [After Play](#after-play-driving-and-knobs) · [Library Config defaults](#library-config-defaults) · [Field procedure](#field-procedure) · [Measuring accuracy](#measuring-accuracy)
 
 ## Copy these files
 
-Copy [`EasyATLConstants.java`](../tuning/EasyATLConstants.java) and [`EasyATLTuning.java`](../tuning/EasyATLTuning.java) into TeamCode in the **same package**. They are not in the JitPack AAR.
+**Pedro:** copy [`EasyATLConstants.java`](../tuning/EasyATLConstants.java) and [`EasyATLTuning.java`](../tuning/EasyATLTuning.java) into TeamCode in the **same package**. Pedro still needs that constants file (webcam helper and follower live there).
 
-Requires Pedro Pathing (`SelectableOpMode`). Keep drivetrain PID and motor names in your existing Pedro `Constants`. `EasyATLConstants` is EasyATL-only.
+**Road Runner / no Pedro:** copy [`EasyATLSdkTuner.java`](../tuning/sdk/EasyATLSdkTuner.java) (and optionally the [SDK sample](SampleOpModeSdk.md)). You do **not** have to copy a constants file — see [AAR defaults](#aar-defaults-no-constants-file). No drivetrain in the tuner — D-pad picks a knob in init, then changes that value after Play.
+
+The tuner OpModes themselves are not in the JitPack AAR. `DefaultSdkConstants` **is** in the AAR.
+
+Requires Pedro Pathing (`SelectableOpMode`) only for the Pedro tuner. Keep drivetrain PID and motor names in your existing Pedro `Constants`.
 
 ```text
-EasyATLConstants          EasyATLTuning              Match TeleOp / auto
-camera, tags, Config  →   pick test, paste snippet → localize(...)
-webcam, follower
+DefaultSdkConstants (AAR)          SDK tuner / sample
+  or EasyATLSdkConstants      →    pick test, paste snippet
+  or EasyATLConstants (Pedro)      Match TeleOp: localize(...)
 ```
 
-`config()` is a method on `EasyATLConstants`, not a separate file. After the tuner prints a snippet, paste it into that method. Match OpModes should already call:
+`config()` is a method on the constants class you are using, not a separate file. After the tuner prints a snippet, paste it into that method.
+
+**Pedro** match OpModes should already call:
 
 ```java
 follower = EasyATLConstants.createFollower(hardwareMap);
@@ -26,31 +34,109 @@ webcam = EasyATLConstants.createWebcam(hardwareMap, telemetry);
 localizer = EasyATLConstants.createLocalizer(EasyATLConstants.config());
 ```
 
+**SDK** match OpModes can start with the AAR (`DefaultSdkConstants` / `new FtcEasyATL()`). After you copy Constants, change those calls in `init()` — exact lines: [Where to switch](#where-to-switch-to-easyatlsdkconstants).
+
+## AAR defaults (no constants file)
+
+SDK / Road Runner code compiles and runs without copying `EasyATLSdkConstants`. The library ships [`DefaultSdkConstants`](LibraryFiles.md#defaultsdkconstantsjava) inside the AAR. `new FtcEasyATL()` is the same localizer as `DefaultSdkConstants.createLocalizer()`.
+
+
+| What               | AAR default (`DefaultSdkConstants`)                                              |
+| ------------------ | -------------------------------------------------------------------------------- |
+| Webcam name        | `Webcam 1` (must match your hardware config)                                     |
+| Camera             | Lens at robot center: forward `0`, right `0`, yaw `0`, pitch `0`                 |
+| Pipeline           | `new EasyATL.Config()` — see [Library Config defaults](#library-config-defaults) |
+| Tags               | `useLatestSeason()` (DECODE goal tags 20 and 24)                                 |
+| Processor / portal | Stock `AprilTagProcessor` + `VisionPortal` on that webcam                        |
+
+
+The SDK tuner and sample already call this class. Copy only the OpMode if you want to try vision on the field tonight.
+
+Copy [`EasyATLSdkConstants.java`](../tuning/sdk/EasyATLSdkConstants.java) into TeamCode when **any** of these is true:
+
+- The lens is not at robot center (tape forward/right/yaw/**pitch**)
+- The USB webcam is not named `Webcam 1`
+- You need a past season, homemade tags, or `addCurrentGameTags()`
+- You want a tighter starting `config()` than the library defaults (the copy-in sample uses 72 in range and 0.70 smoothing)
+
+
+
+### Where to switch to EasyATLSdkConstants
+
+You do **not** edit `DefaultSdkConstants` (that class is inside the library). You copy `EasyATLSdkConstants`, put your lens/webcam/tags/`config()` **in that file**, then point each OpMode’s `init()` at it.
+
+Do this in every SDK OpMode you copied or wrote:
+
+
+| File                                                           | Package                                                      | What to change                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- |
+| [`EasyATLSdkTuner.java`](../tuning/sdk/EasyATLSdkTuner.java) | `org.firstinspires.ftc.teamcode.easyatl` (same as Constants) | The four `DefaultSdkConstants` lines in `init()` |
+| [`EasyATLSdkSample.java`](../tuning/sdk/EasyATLSdkSample.java) | `org.firstinspires.ftc.teamcode` | The three `DefaultSdkConstants` lines in `init()`, plus the import |
+| Your match TeleOp / auto                                       | whatever you used                                            | The same `createProcessor` / `createPortal` / `createLocalizer` calls |
+
+
+Keep `EasyATLSdkConstants` in `org.firstinspires.ftc.teamcode.easyatl` (the package already on that file).
+
+**Tuner** — same package as Constants. Delete the `DefaultSdkConstants` import (you do not need a new import). Then in `init()`:
+
+```java
+processor = EasyATLSdkConstants.createProcessor();
+portal = EasyATLSdkConstants.createPortal(hardwareMap, processor, telemetry);
+config = EasyATLSdkConstants.config();
+localizer = EasyATLSdkConstants.createLocalizer(config);
+```
+
+**Sample / TeleOp / auto** — different package, so add this import (and drop `DefaultSdkConstants`):
+
+```java
+import org.firstinspires.ftc.teamcode.easyatl.EasyATLSdkConstants;
+```
+
+Then in `init()`:
+
+```java
+processor = EasyATLSdkConstants.createProcessor();
+portal = EasyATLSdkConstants.createPortal(hardwareMap, processor, telemetry);
+localizer = EasyATLSdkConstants.createLocalizer(EasyATLSdkConstants.config());
+```
+
+Processor and portal helpers in the copy-in file still delegate to the AAR. Camera, webcam name, tags, and `config()` are what you override in `EasyATLSdkConstants`.
+
+Pedro teams cannot skip constants: `EasyATLConstants` still holds your webcam helper and Pedro follower. That file is not in the AAR.
+
+Tag-map choices: [AprilTag field sets](FieldTagSets.md). Method list: [API](API.md#defaultsdkconstants).
+
 ## Pick a test (before Play)
 
 Open **EasyATL Tuning** on the Driver Station. You get one list (no folders). Highlight a row, then select it. **Do not press Play until a test is selected.**
 
-| D-pad | Before Play (the list) |
-| --- | --- |
-| Up / down | Move the highlight |
-| Right | Select that test |
-| Left | Go back |
+
+| D-pad     | Before Play (the list) |
+| --------- | ---------------------- |
+| Up / down | Move the highlight     |
+| Right     | Select that test       |
+| Left      | Go back                |
+
 
 Pedro’s on-screen hint may also mention bumpers. You only need the D-pad.
 
 The tests themselves are unchanged. Start with **Vision telemetry**.
 
-| Test | What it does |
-| --- | --- |
-| Vision telemetry | Pose, quality, tags. Does **not** set Pedro pose. |
+
+| Test                    | What it does                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Vision telemetry        | Pose, quality, tags. Does **not** set Pedro pose.                                                                                         |
 | Apply vision correction | Writes Pedro pose when `localize()` returns true and quality ≥ **0.20** (sample gate, not a library default). Use only after tape checks. |
-| Max range (in) | Live range filter. PASS/FAIL for each tag. |
-| Max bearing (deg) | Live bearing filter. PASS/FAIL for each tag. |
-| Max tag yaw (deg) | Live tag-yaw filter. PASS/FAIL for each tag. |
-| XY outlier (in) | Multi-tag XY outlier limit. |
-| Heading outlier (deg) | Multi-tag heading outlier limit. |
-| Smoothing alpha | Live pose blend (`1.0` = no smoothing). |
-| Quality decay rate | How fast quality falls when no pose is accepted. |
+| Max range (in)          | Live range filter. PASS/FAIL for each tag.                                                                                                |
+| Max bearing (deg)       | Live bearing filter. PASS/FAIL for each tag.                                                                                              |
+| Max tag yaw (deg)       | Live tag-yaw filter. PASS/FAIL for each tag.                                                                                              |
+| XY outlier (in)         | Multi-tag XY outlier limit.                                                                                                               |
+| Heading outlier (deg)   | Multi-tag heading outlier limit.                                                                                                          |
+| Smoothing alpha         | Live pose blend (`1.0` = no smoothing).                                                                                                   |
+| Quality decay rate      | How fast quality falls when no pose is accepted.                                                                                          |
+
+
+The SDK tuner also exposes **Weight range scale**. Per-tag OK/REJECT reasons (`range`, `bearing`, `yaw`, `outlier`) and XY residual print on both tuners’ vision telemetry (Pedro: Vision telemetry screen; SDK: every screen).
 
 ## After Play (driving and knobs)
 
@@ -58,40 +144,51 @@ Drive: left stick Y, triggers strafe, right stick X.
 
 On filter tests, the D-pad **no longer** means select/back. It changes the current setting:
 
-| D-pad | After Play (filter tests) |
-| --- | --- |
-| Up / down | Small step |
-| Left / right | Large step |
 
-Range, bearing, yaw, outlier, smoothing, and quality tests print a Config snippet to paste into `EasyATLConstants.config()`. Vision telemetry does not.
+| D-pad        | After Play (filter tests) |
+| ------------ | ------------------------- |
+| Up / down    | Small step                |
+| Left / right | Large step                |
 
-## Library defaults
 
-`new EasyATL.Config()` / `new FtcEasyATL(camera)` (the copy-in `EasyATLConstants.config()` sample uses 72 in range and 0.70 smoothing instead):
+Range, bearing, yaw, outlier, smoothing, and quality tests print a Config snippet to paste into `EasyATLConstants.config()` (Pedro) or `EasyATLSdkConstants.config()` (SDK override). Vision telemetry does not. If you are still on AAR defaults, copy `EasyATLSdkConstants` before pasting.
 
-| Setting | Default |
-| --- | ---: |
-| Max range | 96 in |
-| Max bearing | 55° |
-| Max tag yaw | 45° |
-| XY outlier limit | 12 in |
-| Heading outlier limit | 25° |
-| Smoothing alpha | 0.65 |
-| Quality decay | 0.8/s |
+## Library Config defaults
+
+Filter knobs when you call `new EasyATL.Config()`, `DefaultSdkConstants.config()`, or `new FtcEasyATL()` (no custom config). The copy-in `EasyATLConstants.config()` / `EasyATLSdkConstants.config()` samples use 72 in range and 0.70 smoothing instead:
+
+
+| Setting               | Default         |
+| --------------------- | --------------- |
+| Max range             | 96 in           |
+| Max bearing           | 55°             |
+| Max tag yaw           | 45°             |
+| XY outlier limit      | 12 in           |
+| Heading outlier limit | 25°             |
+| Smoothing alpha       | 0.65            |
+| Quality decay         | 0.8/s           |
+| Weight range scale    | 36 in           |
+| Decision-margin scale | 50              |
+| Max observation age   | off (`0`)       |
+| Max step XY / heading | unlimited (`0`) |
+
 
 There is no universally optimal set. Tune **your** camera and field. Change **one** parameter at a time.
 
-| Parameter | Increase when… | Decrease when… |
-| --- | --- | --- |
-| `maxRangeInches` | Tags drop too early at useful distance | Far tags are noisy |
-| `maxBearingDegrees` | Edge-of-frame tags are still stable | Edge detections jump |
-| `maxTagYawDegrees` | Steep angles are still accurate | Angled tags are bad |
-| `outlierDistanceInches` | Good multi-tag estimates disagree a little | One bad tag yanks XY |
-| `outlierHeadingDegrees` | Headings differ slightly | Heading jumps |
-| `smoothingAlpha` | Need faster response (`1.0` = off) | Pose is jittery |
-| `qualityDecayRate` | Want stale vision untrusted faster | Want quality to linger |
 
-If a detection is geometrically valid but noisy, tighten range / bearing / yaw **before** outliers or smoothing. Per-tag weights are not configurable.
+| Parameter                | Increase when…                             | Decrease when…                |
+| ------------------------ | ------------------------------------------ | ----------------------------- |
+| `maxRangeInches`         | Tags drop too early at useful distance     | Far tags are noisy            |
+| `maxBearingDegrees`      | Edge-of-frame tags are still stable        | Edge detections jump          |
+| `maxTagYawDegrees`       | Steep angles are still accurate            | Angled tags are bad           |
+| `outlierDistanceInches`  | Good multi-tag estimates disagree a little | One bad tag yanks XY          |
+| `outlierHeadingDegrees`  | Headings differ slightly                   | Heading jumps                 |
+| `smoothingAlpha`         | Need faster response (`1.0` = off)         | Pose is jittery               |
+| `qualityDecayRate`       | Want stale vision untrusted faster         | Want quality to linger        |
+| `weightRangeScaleInches` | Far tags are still trustworthy             | Far tags dominate a close tag |
+
+
+If a detection is geometrically valid but noisy, tighten range / bearing / yaw **before** outliers or smoothing. Weights are configurable; formulas: [Math](Math.md).
 
 ## Field procedure
 
@@ -101,7 +198,7 @@ Mark a few **stations** on the floor with tape: spots where you will park the ro
 
 ### 1. Geometry check (do this first)
 
-Park at 24 in, one configured tag in view. On telemetry, the tag ID must match `addTag(...)`. Vision X/Y/heading should be close to what you measured on the field. If the pose is flipped, rotated, or off by a **constant** amount at every station, fix camera offsets, camera yaw, and tag X/Y/facing in `EasyATLConstants`. Do not tune filters for that.
+Park at 24 in, one configured tag in view. On telemetry, the tag ID must match `addTag(...)` or `addCurrentGameTags()`. Vision X/Y/heading should be close to what you measured on the field. If the pose is flipped, rotated, or off by a **constant** amount at every station, fix camera offsets, camera yaw/**pitch**, and tag X/Y/facing. Do not tune filters for that. Error that grows with distance is often pitch or lens-vs-housing.
 
 ### 2. One tag, four distances
 
@@ -147,7 +244,7 @@ Stop when:
 - Bad views are rejected
 - You are not still chasing a constant offset (that is still geometry)
 
-Then paste the tuner’s Config snippet into `EasyATLConstants.config()`.
+Then paste the tuner’s Config snippet into `EasyATLConstants.config()` (Pedro) or `EasyATLSdkConstants.config()` (SDK override). If you never copied a constants file, copy `EasyATLSdkConstants` now so you have a place to paste, or call `setConfig(...)` on the localizer in `init()`.
 
 ## Measuring accuracy
 
@@ -184,18 +281,22 @@ headingErrorDeg = abs(176 - 180)
 
 Filled-in row for that trial:
 
-| Station | Tape X | Tape Y | Tape heading | Vision X | Vision Y | Vision heading | Position error | Heading error | Visible | Accepted | Quality |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: |
-| 36 in, tag 21 | 36.0 | 0.0 | 180° | 37.2 | 1.1 | 176° | 1.6 in | 4° | [21] | [21] | 0.72 |
 
-6. Repeat at each station (one-tag at 24 / 36 / 48 / 72 in, then a two-tag spot if you use more than one tag).
-7. Optional: run the same stations once with library defaults (`new EasyATL.Config()`) and once with your tuned `config()`. Keep whichever set is more accurate **without** dropping the frames you need.
+| Station       | Tape X | Tape Y | Tape heading | Vision X | Vision Y | Vision heading | Position error | Heading error | Visible | Accepted | Quality |
+| ------------- | ------ | ------ | ------------ | -------- | -------- | -------------- | -------------- | ------------- | ------- | -------- | ------- |
+| 36 in, tag 21 | 36.0   | 0.0    | 180°         | 37.2     | 1.1      | 176°           | 1.6 in         | 4°            | [21]    | [21]     | 0.72    |
+
+
+1. Repeat at each station (one-tag at 24 / 36 / 48 / 72 in, then a two-tag spot if you use more than one tag).
+2. Optional: run the same stations once with library defaults (`DefaultSdkConstants.config()` / `new EasyATL.Config()`) and once with your tuned `config()`. Keep whichever set is more accurate **without** dropping the frames you need.
 
 Copy the table into Google Sheets, Excel, or a team notebook. It is a **record of that practice session**, not something that goes into Git or the robot. Use it to pick a config and to see if a later camera remount made things worse.
 
+
 | Station (e.g. 36 in, tag 21) | Tape X | Tape Y | Tape heading | Vision X | Vision Y | Vision heading | Position error | Heading error | Visible | Accepted | Quality |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| | | | | | | | | | | | |
+| ---------------------------- | ------ | ------ | ------------ | -------- | -------- | -------------- | -------------- | ------------- | ------- | -------- | ------- |
+|                              |        |        |              |          |          |                |                |               |         |          |         |
+
 
 ---
 

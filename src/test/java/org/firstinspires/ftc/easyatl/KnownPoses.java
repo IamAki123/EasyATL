@@ -15,12 +15,20 @@ final class KnownPoses {
         double dy = tagY - robot.y;
         double f = dx * Math.cos(h) + dy * Math.sin(h);
         double r = dx * Math.sin(h) - dy * Math.cos(h);
-        double c = Math.cos(camera.yawRadians);
-        double s = Math.sin(camera.yawRadians);
         double fp = f - camera.forward;
         double rp = r - camera.right;
-        double forward = fp * c - rp * s;
-        double right = fp * s + rp * c;
+        double c = Math.cos(camera.yawRadians);
+        double s = Math.sin(camera.yawRadians);
+        // Inverse of yaw, then pitch (z=0 in generated observations).
+        double y2 = fp * c - rp * s;
+        double x1 = fp * s + rp * c;
+        double cp = Math.cos(camera.pitchRadians);
+        if (Math.abs(cp) < 1e-9) {
+            throw new IllegalArgumentException("KnownPoses cannot invert a ±90° camera pitch");
+        }
+        double forward = y2 / cp;
+        double cr = Math.cos(camera.rollRadians);
+        double right = cr == 0 ? x1 : x1 / cr;
         double yawDegrees = Math.toDegrees(wrap(tagFacing + Math.PI - h - camera.yawRadians));
         double range = Math.hypot(right, forward);
         double bearingDegrees = Math.toDegrees(Math.atan2(right, forward));

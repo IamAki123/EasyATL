@@ -2,15 +2,13 @@
 
 [README](../README.md) · [Sample OpMode](SampleOpMode.md) · [Troubleshooting](Troubleshooting.md)
 
-Current JitPack version: **1.1.2** (must match a [git tag](https://github.com/IamAki123/EasyATL/releases)).
+Current JitPack version: **1.2.0** (must match a [git tag](https://github.com/IamAki123/EasyATL/releases)).
 
 ## What you need
 
 - An FTC SDK **11.1.0+** Android Studio project (`FtcEasyATL` uses Vision + RobotCore)
 - Android Studio’s Embedded JDK for the Gradle JVM (11+). EasyATL’s bytecode is Java 8
-- **Pedro Pathing** only if you copy the [tuner](../tuning/README.md) or [sample TeleOp](SampleOpMode.md)
-
-Core `EasyATL` has no Pedro or Road Runner dependency. Copy-in tuners are **not** in the JitPack AAR.
+- Core `EasyATL` has no Pedro or Road Runner dependency. Copy-in tuners are **not** in the JitPack AAR. Pedro tuner/sample vs [SDK tuner](../tuning/sdk/README.md).
 
 Building *this* GitHub repo from the command line is different (JDK 17+, Android SDK): [Contributing](../CONTRIBUTING.md).
 
@@ -52,7 +50,7 @@ In `TeamCode/build.gradle`:
 ```gradle
 dependencies {
     implementation project(':FtcRobotController')
-    implementation 'com.github.IamAki123:EasyATL:1.1.2'
+    implementation 'com.github.IamAki123:EasyATL:1.2.0'
 }
 ```
 
@@ -64,16 +62,16 @@ File → Sync Project with Gradle Files.
 
 **You are done when** the project syncs and Android Studio can autocomplete `org.firstinspires.ftc.easyatl.FtcEasyATL`.
 
-Next: copy [`EasyATLConstants`](../tuning/EasyATLConstants.java) and continue in the [README](../README.md) (**2. Configure the robot once**).
+Next: SDK / Road Runner can call `new FtcEasyATL()` or `DefaultSdkConstants.createLocalizer()` immediately. Pedro teams copy [`EasyATLConstants`](../tuning/EasyATLConstants.java). Continue in the [README](../README.md) (**2. Configure the robot once**).
 
 ## Optional: local module
 
-Use this if you want to edit EasyATL source next to TeamCode instead of JitPack.
+Use this if you want to edit EasyATL source next to TeamCode instead of JitPack. This is the supported non-JitPack path (Maven Central is not published).
 
 1. Clone or copy this repository so it sits next to `TeamCode` (for example `YourFtcProject/EasyATL/` with this project’s `build.gradle` and `src/`).
 2. `include ':EasyATL'` in the FTC project’s root `settings.gradle`.
 3. `implementation project(':EasyATL')` in `TeamCode/build.gradle` (no JitPack coordinate needed for EasyATL).
-4. Sync with Android Studio’s Embedded JDK.
+4. Sync with Android Studio’s Embedded JDK. The module name must match `include`; do not `implementation project(':easyatl')` unless you included that name.
 
 ---
 

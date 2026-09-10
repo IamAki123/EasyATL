@@ -15,16 +15,15 @@ Check **geometry in `EasyATLConstants`** (tag map and lens) before filter knobs.
 | Visible empty, tags on screen | Tag IDs not passed to `addTag()`. Unconfigured IDs are ignored. |
 | Pose mirrored or rotated | Tag **facing** and camera yaw before changing filters |
 | Constant offset (same error everywhere) | Lens vs robot center, and tag field X/Y |
+| Error grows with distance | Camera **pitch**, lens vs housing, or calibration — not a missing range filter |
 | Pose frozen after tags disappear | Expected. Last vision pose is kept; let odometry run until a tag is accepted again |
-| Pose jumps | Geometry first, then tighter range/bearing/yaw, then outliers, then lower `smoothingAlpha` |
-| Error grows with distance | Usually mount, calibration, or detection quality — not a missing filter |
 
 ## Conventions
 
 - Inches and radians. Heading `0` along field `+X`, CCW-positive.
-- `CameraConfig` is the **lens**. Negative forward = behind center; negative right = left of center; negative yaw = camera pointed right.
-- `getQuality()` is a heuristic in `[0, 1]`, not a probability. `getConfidence()` is a deprecated alias.
-- EasyATL does not publish a universal inch-error; measure your robot.
+- `CameraConfig` is the **lens**, not the housing. Negative forward = behind center; negative right = left of center; negative yaw = camera pointed right; negative pitch = tilted down.
+- `getQuality()` is a heuristic in `[0, 1]`, not a probability. `getConfidence()` is a deprecated alias (removal planned for a future major version).
+- EasyATL does not publish a universal inch-error; measure your robot. See [Math](Math.md) for weights and quality.
 
 Still stuck? Open a [bug report](https://github.com/IamAki123/EasyATL/issues/new?template=bug_report.md) with EasyATL version, FTC SDK version, and telemetry (pose, quality, visible vs accepted tags).
 

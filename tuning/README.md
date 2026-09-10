@@ -13,4 +13,4 @@ These two files are for **practice**, not matches. Match code still calls `FtcEa
 3. Press **Play**. Drive with sticks and triggers. On a filter test, D-pad now changes that setting (up/down small, left/right large). Range/bearing/yaw screens show PASS/FAIL. Filter tests print a snippet to paste into `EasyATLConstants.config()`.
 4. Match TeleOp should call `createFollower` / `createWebcam` / `createLocalizer` from Constants **in `init()`**.
 
-Requires Pedro Pathing (`SelectableOpMode`).
+Requires Pedro Pathing (`SelectableOpMode`). Road Runner / custom drive: use the [SDK tuner](sdk/README.md) instead — that path can run on [`DefaultSdkConstants`](../docs/Tuning.md#aar-defaults-no-constants-file) without copying a constants file.

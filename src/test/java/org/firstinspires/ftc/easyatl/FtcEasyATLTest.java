@@ -67,4 +67,63 @@ public class FtcEasyATLTest {
         assertEquals(36, atl.getPose().x, 0.05);
         assertEquals(1, atl.getAcceptedTags().size());
     }
+
+    @Test
+    public void mapsDecisionMarginZAndTimestamp() {
+        AprilTagDetection d = new AprilTagDetection(21, 0, 42.5f, null, null, null,
+                pose(3.0, 40.0, 40.2, 4.0, -2.0), null, null, 123L);
+        EasyATL.Observation o = FtcEasyATL.observationOrNull(d);
+        assertEquals(0.0, o.z, 0.0);
+        assertEquals(42.5, o.decisionMargin, 0.0);
+        assertEquals(123L, o.captureNanoTime);
+    }
+
+    @Test
+    public void addCurrentGameTagsDoesNotThrow() {
+        FtcEasyATL atl = new FtcEasyATL(new EasyATL.CameraConfig(0, 0, 0));
+        atl.addCurrentGameTags();
+        atl.reset();
+        atl.setEnabled(true);
+        assertFalse(atl.hasPose());
+    }
+
+    @Test
+    public void identityQuaternionFacingIsZero() {
+        org.firstinspires.ftc.robotcore.external.navigation.Quaternion q =
+                new org.firstinspires.ftc.robotcore.external.navigation.Quaternion(1, 0, 0, 0, 0);
+        assertEquals(0, FtcEasyATL.facingRadians(q), 1e-9);
+        assertEquals(0, FtcEasyATL.facingRadians(null), 0.0);
+    }
+
+    @Test
+    public void headingDegreesHelper() {
+        assertEquals(180, new FieldPose(0, 0, Math.PI).headingDegrees(), 1e-6);
+    }
+
+    @Test
+    public void noArgConstructorAndDefaultSdkConstantsUseLatestSeason() {
+        EasyATL.Config wide = new EasyATL.Config().setSmoothingAlpha(1)
+                .setMaxRangeInches(200).setMaxBearingDegrees(180).setMaxTagYawDegrees(180);
+        FtcEasyATL fromDefaults = DefaultSdkConstants.createLocalizer(wide);
+        FtcEasyATL fromNoArg = new FtcEasyATL();
+        fromNoArg.setConfig(wide);
+
+        FieldTags.Tag blue = FieldTags.latest().tags().get(0);
+        EasyATL.CameraConfig cam = DefaultSdkConstants.camera();
+        FieldPose robot = new FieldPose(
+                blue.x + 36 * Math.cos(blue.facingRadians),
+                blue.y + 36 * Math.sin(blue.facingRadians),
+                EasyATL.wrap(blue.facingRadians + Math.PI));
+        EasyATL.Observation expected = KnownPoses.observation(
+                blue.id, blue.x, blue.y, blue.facingRadians, cam, robot);
+        AprilTagDetection d = detection(blue.id, pose(expected.right, expected.forward,
+                expected.range, expected.bearingDegrees, expected.yawDegrees));
+
+        assertTrue(fromDefaults.localize(Collections.singletonList(d)));
+        assertTrue(fromNoArg.localize(Collections.singletonList(d)));
+        assertEquals(robot.x, fromDefaults.getPose().x, 0.08);
+        assertEquals(robot.x, fromNoArg.getPose().x, 0.08);
+        assertEquals(0.0, cam.forward, 0.0);
+        assertEquals("Webcam 1", DefaultSdkConstants.WEBCAM_NAME);
+    }
 }
