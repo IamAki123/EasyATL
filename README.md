@@ -27,7 +27,7 @@ It does **not** replace MegaTag botpose if you already trust that pipeline. Use 
 
 **Expected accuracy:** measure *your* robot. With a taped lens mount, correct tag map, and tags at 3–4 ft, **1–3 in** XY and a few degrees of heading is a common good result — not a guarantee. Lighting, calibration, pitch, and field setup dominate. Error that *grows with distance* is usually pitch, lens vs housing, or calibration, not a missing filter. How to score tape vs vision: [Tuning](docs/Tuning.md#measuring-accuracy).
 
-**Current release:** [1.2.1](https://github.com/IamAki123/EasyATL/releases/tag/1.2.1). Camera pitch, official tag maps, `DefaultSdkConstants`, `PoseCorrector`, the SDK tuner, and debug/uncertainty APIs. JitPack: `com.github.IamAki123:EasyATL:1.2.1`.
+**Current release:** [1.2.2](https://github.com/IamAki123/EasyATL/releases/tag/1.2.2). Camera pitch, official tag maps, `DefaultSdkConstants`, `PoseCorrector`, heading-aware `FieldPose` equality, and debug/uncertainty APIs. JitPack: `com.github.IamAki123:EasyATL:1.2.2`.
 
 ## First time here?
 
@@ -67,7 +67,7 @@ repositories {
 Then in `TeamCode/build.gradle`, inside `dependencies`:
 
 ```gradle
-implementation 'com.github.IamAki123:EasyATL:1.2.1'
+implementation 'com.github.IamAki123:EasyATL:1.2.2'
 ```
 
 If Pedro (or other libraries) already live in `build.dependencies.gradle`’s `dependencies` block, put that `implementation` line there instead.

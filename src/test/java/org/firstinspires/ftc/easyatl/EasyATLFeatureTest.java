@@ -190,6 +190,23 @@ public class EasyATLFeatureTest {
     }
 
     @Test
+    public void maxStepLimitsHeading() {
+        EasyATL atl = new EasyATL(ZERO, new EasyATL.Config().setSmoothingAlpha(1)
+                .setMaxRangeInches(200).setMaxBearingDegrees(180).setMaxTagYawDegrees(180)
+                .setMaxStepDegrees(10))
+                .addTag(21, 0, 0, 0);
+        FieldPose first = new FieldPose(36, 0, Math.PI);
+        FieldPose jumped = new FieldPose(36, 0, EasyATL.wrap(Math.PI + Math.toRadians(30)));
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, first))));
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, jumped))));
+        double expected = EasyATL.wrap(Math.PI + Math.toRadians(10));
+        assertEquals(0, EasyATL.wrap(atl.getPose().heading - expected), RAD);
+        assertEquals(36, atl.getPose().x, INCH);
+    }
+
+    @Test
     public void staleFrameIsRejected() {
         AtomicLong nanos = new AtomicLong(10_000_000_000L);
         EasyATL atl = new EasyATL(ZERO, new EasyATL.Config().setSmoothingAlpha(1)
@@ -202,6 +219,32 @@ public class EasyATLFeatureTest {
         assertFalse(atl.hasPose());
         assertEquals("stale", atl.getDebug().tags.get(0).rejectReason);
         assertTrue(atl.localize(Collections.singletonList(o), nanos.get()));
+    }
+
+    @Test
+    public void maxObservationAgeZeroDisablesCheck() {
+        AtomicLong nanos = new AtomicLong(10_000_000_000L);
+        EasyATL atl = new EasyATL(ZERO, new EasyATL.Config().setSmoothingAlpha(1)
+                .setMaxRangeInches(200).setMaxBearingDegrees(180).setMaxTagYawDegrees(180)
+                .setMaxObservationAgeMs(0))
+                .addTag(21, 0, 0, 0);
+        atl.setNanoTimeSource(EasyATL.advancingNanoTime(nanos));
+        EasyATL.Observation o = KnownPoses.observation(21, 0, 0, 0, ZERO, new FieldPose(36, 0, Math.PI));
+        assertTrue(atl.localize(Collections.singletonList(o), 1_000_000_000L));
+        assertPose(new FieldPose(36, 0, Math.PI), atl.getPose());
+    }
+
+    @Test
+    public void observationWithinAgeWindowIsAccepted() {
+        AtomicLong nanos = new AtomicLong(10_000_000_000L);
+        EasyATL atl = new EasyATL(ZERO, new EasyATL.Config().setSmoothingAlpha(1)
+                .setMaxRangeInches(200).setMaxBearingDegrees(180).setMaxTagYawDegrees(180)
+                .setMaxObservationAgeMs(50))
+                .addTag(21, 0, 0, 0);
+        atl.setNanoTimeSource(EasyATL.advancingNanoTime(nanos));
+        EasyATL.Observation o = KnownPoses.observation(21, 0, 0, 0, ZERO, new FieldPose(36, 0, Math.PI));
+        assertTrue(atl.localize(Collections.singletonList(o), nanos.get() - 40_000_000L));
+        assertPose(new FieldPose(36, 0, Math.PI), atl.getPose());
     }
 
     @Test
@@ -400,6 +443,21 @@ public class EasyATLFeatureTest {
     }
 
     @Test
+    public void singleTagQualityKeepsCountBoostDefaults() {
+        AtomicLong nanos = new AtomicLong(1_000_000_000L);
+        EasyATL atl = open(ZERO);
+        atl.setNanoTimeSource(EasyATL.advancingNanoTime(nanos));
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, new FieldPose(36, 0, Math.PI)))));
+        double weight = atl.getDebug().tags.get(0).weight;
+        double countBoost = Math.min(1, EasyATL.Config.DEFAULT_QUALITY_COUNT_BASE
+                + EasyATL.Config.DEFAULT_QUALITY_COUNT_PER_TAG);
+        assertEquals(1, atl.getAcceptedTags().size());
+        assertEquals(0, atl.getUncertainty().residualInches, 1e-9);
+        assertEquals(weight * countBoost, atl.getQuality(), 1e-9);
+    }
+
+    @Test
     public void skipsNullObservationInList() {
         EasyATL atl = open(ZERO);
         EasyATL.Observation good = KnownPoses.observation(21, 0, 0, 0, ZERO, new FieldPose(36, 0, Math.PI));
@@ -426,5 +484,11 @@ public class EasyATLFeatureTest {
         assertEquals(a.hashCode(), b.hashCode());
         assertFalse(a.equals(c));
         assertTrue(a.toString().contains("1.000"));
+        FieldPose plusPi = new FieldPose(1, 2, Math.PI);
+        FieldPose minusPi = new FieldPose(1, 2, -Math.PI);
+        assertEquals(plusPi, minusPi);
+        assertEquals(plusPi.hashCode(), minusPi.hashCode());
+        assertEquals(new FieldPose(0, 0, 0), new FieldPose(0, 0, 2 * Math.PI));
+        assertFalse(plusPi.toString().equals(minusPi.toString()));
     }
 }

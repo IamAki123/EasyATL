@@ -6,7 +6,7 @@ labels: bug
 assignees: ''
 ---
 
-**EasyATL version** (JitPack tag, e.g. 1.2.1):
+**EasyATL version** (JitPack tag, e.g. 1.2.2):
 
 **FTC SDK version:**
 

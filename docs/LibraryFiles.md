@@ -73,9 +73,9 @@ portal = DefaultSdkConstants.createPortal(hardwareMap, processor, telemetry);
 
 **The localization engine.** No FTC Vision types. Independent of Pedro and Road Runner.
 
-`localize(List<Observation>)` does the work described in [the simple walkthrough](MathButDumbed.md): range/bearing/yaw filters, per-tag weights, multi-tag outlier cut, smoothing, quality.
+`localize(List<Observation>)` does the work described in [the simple walkthrough](MathButDumbed.md): range/bearing/yaw filters, per-tag weights, multi-tag outlier cut, smoothing, quality. Fusion math is in package-private `EasyATLMath` (not a public type).
 
-Nested types live in this same file (they are not separate `.java` files):
+Public nested types live in this same file:
 
 | Nested type | Role |
 | --- | --- |
@@ -99,6 +99,8 @@ Three public fields:
 - `heading` — radians, CCW-positive, `0` along field `+X`
 
 `headingDegrees()` is the same heading in degrees for telemetry.
+
+`equals` / `hashCode` treat headings that wrap to the same angle as equal (`π` and `−π` are the same heading). The stored `heading` field is not rewritten.
 
 EasyATL does not depend on Pedro or Road Runner. You convert at the call site, for example `new Pose(pose.x, pose.y, pose.heading)` or `new Pose2d(...)`.
 

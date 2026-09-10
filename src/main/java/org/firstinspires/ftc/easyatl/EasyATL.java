@@ -311,7 +311,7 @@ public final class EasyATL {
          */
         public Config setSmoothingAlpha(double value) {
             requireFinite("smoothing alpha", value);
-            smoothingAlpha = clamp(value, 0, 1);
+            smoothingAlpha = EasyATLMath.clamp(value, 0, 1);
             return this;
         }
 
@@ -359,7 +359,7 @@ public final class EasyATL {
          */
         public Config setMinWeight(double value) {
             requireFinite("min weight", value);
-            minWeight = clamp(value, 0, 1);
+            minWeight = EasyATLMath.clamp(value, 0, 1);
             return this;
         }
 
@@ -477,7 +477,6 @@ public final class EasyATL {
     }
 
     private static final class Tag { final double x,y,facing; Tag(double x,double y,double facing){this.x=x;this.y=y;this.facing=facing;} }
-    private static final class Estimate { final FieldPose pose; final double weight; final int id; Estimate(FieldPose p,double w,int i){pose=p;weight=w;id=i;} }
 
     private final Map<Integer, Tag> tags = new HashMap<>();
     private CameraConfig camera;
@@ -714,24 +713,24 @@ public final class EasyATL {
         }
 
         // 3. Robust center (medoid) of the candidates.
-        FieldPose center = robustCenter(candidates.estimates);
+        FieldPose center = EasyATLMath.robustCenter(candidates.estimates, config);
         // 4. Reject outliers versus that center.
-        List<Estimate> inliers = rejectOutliers(candidates.estimates, center, candidates.reports);
+        List<EasyATLMath.Estimate> inliers = rejectOutliers(candidates.estimates, center, candidates.reports);
         if (inliers.isEmpty()) {
             return failFrame(candidates.reports, null);
         }
 
         // 5. Weighted mean of inliers (Huber down-weight inside the inlier set).
-        FieldPose measurement = mean(inliers, center);
-        measurement = limitStep(pose, measurement);
+        FieldPose measurement = EasyATLMath.mean(inliers, center, config);
+        measurement = EasyATLMath.limitStep(pose, measurement, config);
         // 6. Exponential smoothing toward the new measurement.
-        pose = pose == null ? measurement : blend(pose, measurement, config.getSmoothingAlpha());
+        pose = pose == null ? measurement : EasyATLMath.blend(pose, measurement, config.getSmoothingAlpha());
 
         // 7. Update accepted tags, uncertainty, and quality.
         acceptedTags = acceptedIds(inliers);
-        Uncertainty uncertainty = uncertainty(inliers, measurement);
+        Uncertainty uncertainty = EasyATLMath.uncertainty(inliers, measurement);
         lastUncertainty = uncertainty;
-        confidence = scoreQuality(inliers, candidates.estimates.size(), uncertainty);
+        confidence = EasyATLMath.scoreQuality(inliers, candidates.estimates.size(), uncertainty, config);
         lastConfidenceTime = now;
         lastDebug = new DebugFrame(true, measurement, uncertainty, Collections.unmodifiableList(candidates.reports));
         return true;
@@ -739,7 +738,7 @@ public final class EasyATL {
 
     private static final class CandidateSet {
         final List<Integer> visible = new ArrayList<>();
-        final List<Estimate> estimates = new ArrayList<>();
+        final List<EasyATLMath.Estimate> estimates = new ArrayList<>();
         final List<TagDebug> reports = new ArrayList<>();
         long newestCapture;
     }
@@ -763,21 +762,21 @@ public final class EasyATL {
                     out.reports.add(new TagDebug(o.id, 0, reason, null));
                     continue;
                 }
-                FieldPose tagPose = toPose(frame.camera, tag, o);
-                double w = weight(o);
-                out.estimates.add(new Estimate(tagPose, w, o.id));
+                FieldPose tagPose = EasyATLMath.toPose(frame.camera, tag.x, tag.y, tag.facing, o);
+                double w = EasyATLMath.weight(o, config);
+                out.estimates.add(new EasyATLMath.Estimate(tagPose, w, o.id));
                 out.reports.add(new TagDebug(o.id, w, null, tagPose));
             }
         }
         return out;
     }
 
-    private List<Estimate> rejectOutliers(List<Estimate> estimates, FieldPose center, List<TagDebug> reports) {
-        List<Estimate> inliers = new ArrayList<>();
+    private List<EasyATLMath.Estimate> rejectOutliers(List<EasyATLMath.Estimate> estimates, FieldPose center, List<TagDebug> reports) {
+        List<EasyATLMath.Estimate> inliers = new ArrayList<>();
         double outlierHeadingRadians = Math.toRadians(config.getOutlierHeadingDegrees());
-        for (Estimate e : estimates) {
+        for (EasyATLMath.Estimate e : estimates) {
             boolean in = Math.hypot(e.pose.x - center.x, e.pose.y - center.y) <= config.getOutlierDistanceInches()
-                    && Math.abs(wrap(e.pose.heading - center.heading)) <= outlierHeadingRadians;
+                    && Math.abs(EasyATLMath.wrap(e.pose.heading - center.heading)) <= outlierHeadingRadians;
             if (in) {
                 inliers.add(e);
             } else {
@@ -787,9 +786,9 @@ public final class EasyATL {
         return inliers;
     }
 
-    private static List<Integer> acceptedIds(List<Estimate> inliers) {
+    private static List<Integer> acceptedIds(List<EasyATLMath.Estimate> inliers) {
         List<Integer> ids = new ArrayList<>();
-        for (Estimate e : inliers) ids.add(e.id);
+        for (EasyATLMath.Estimate e : inliers) ids.add(e.id);
         return Collections.unmodifiableList(ids);
     }
 
@@ -800,24 +799,6 @@ public final class EasyATL {
                         ? Collections.unmodifiableList(reports)
                         : freezeReasons(reports, freezeReason));
         return false;
-    }
-
-    /**
-     * Instantaneous quality for an accepted frame.
-     *
-     * <p>{@code clamp(meanWeight * (nInliers / nEstimates) * countBoost * consistency, 0, 1)}
-     * where {@code countBoost = min(1, qualityCountBase + qualityCountPerTag * nInliers)}
-     * and {@code consistency = 1 / (1 + residualInches / outlierDistanceInches)}.</p>
-     */
-    private double scoreQuality(List<Estimate> inliers, int estimateCount, Uncertainty uncertainty) {
-        double meanWeight = 0;
-        for (Estimate e : inliers) meanWeight += e.weight;
-        meanWeight /= inliers.size();
-        double inlierRatio = (double) inliers.size() / estimateCount;
-        double countBoost = Math.min(1, config.getQualityCountBase()
-                + config.getQualityCountPerTag() * inliers.size());
-        double consistency = 1.0 / (1.0 + uncertainty.residualInches / config.getOutlierDistanceInches());
-        return clamp(meanWeight * inlierRatio * countBoost * consistency, 0, 1);
     }
 
     /**
@@ -897,122 +878,6 @@ public final class EasyATL {
         return ageMs > (long) config.getMaxObservationAgeMs();
     }
 
-    /**
-     * Camera-frame tag (right, forward, z) → robot frame (roll, then pitch, then yaw + mount
-     * offset) → field pose using tag XY and facing.
-     */
-    private FieldPose toPose(CameraConfig cam, Tag tag, Observation o) {
-        // Camera frame: +right, +forward, +z (up).
-        double x = o.right;
-        double y = o.forward;
-        double z = o.z;
-        // Undo roll about the optical axis.
-        double cr = Math.cos(cam.rollRadians);
-        double sr = Math.sin(cam.rollRadians);
-        double x1 = x * cr - z * sr;
-        double z1 = x * sr + z * cr;
-        // Undo pitch (optical axis tilt).
-        double cp = Math.cos(cam.pitchRadians);
-        double sp = Math.sin(cam.pitchRadians);
-        double y2 = y * cp - z1 * sp;
-        // Undo yaw and add the lens offset vs robot center.
-        double c = Math.cos(cam.yawRadians);
-        double s = Math.sin(cam.yawRadians);
-        double f = y2 * c + x1 * s + cam.forward;
-        double r = -y2 * s + x1 * c + cam.right;
-        double h = wrap(tag.facing + Math.PI - Math.toRadians(o.yawDegrees) - cam.yawRadians);
-        return new FieldPose(tag.x - (f * Math.cos(h) + r * Math.sin(h)),
-                tag.y - (f * Math.sin(h) - r * Math.cos(h)), h);
-    }
-
-    private double weight(Observation o) {
-        double scale = config.getWeightRangeScaleInches();
-        double range = 1 / (1 + Math.pow(o.range / scale, 2));
-        double angle = Math.cos(Math.toRadians(o.bearingDegrees)) * Math.cos(Math.toRadians(o.yawDegrees));
-        double margin = 1;
-        if (Double.isFinite(o.decisionMargin) && o.decisionMargin > 0) {
-            margin = clamp(o.decisionMargin / config.getDecisionMarginScale(), 0, 1);
-        }
-        return Math.max(config.getMinWeight(), range * Math.max(0, angle) * margin);
-    }
-
-    private FieldPose mean(List<Estimate> values, FieldPose center) {
-        double x = 0, y = 0, s = 0, c = 0, total = 0;
-        double outlierHeadingRadians = Math.toRadians(config.getOutlierHeadingDegrees());
-        for (Estimate e : values) {
-            double dist = Math.hypot(e.pose.x - center.x, e.pose.y - center.y);
-            double headingErr = Math.abs(wrap(e.pose.heading - center.heading));
-            double huber = huber(dist, config.getOutlierDistanceInches())
-                    * huber(headingErr, outlierHeadingRadians);
-            double w = e.weight * huber;
-            x += w * e.pose.x;
-            y += w * e.pose.y;
-            s += w * Math.sin(e.pose.heading);
-            c += w * Math.cos(e.pose.heading);
-            total += w;
-        }
-        return new FieldPose(x / total, y / total, Math.atan2(s, c));
-    }
-
-    private static double huber(double residual, double scale) {
-        if (scale <= 0) return 1;
-        double u = residual / scale;
-        if (u <= 1) return 1;
-        return 1 / u;
-    }
-
-    private FieldPose robustCenter(List<Estimate> values){
-        Estimate best=null; double bestCost=Double.POSITIVE_INFINITY;
-        double outlierHeadingRadians=Math.toRadians(config.getOutlierHeadingDegrees());
-        for(Estimate candidate:values){
-            double cost=0;
-            for(Estimate other:values) cost+=Math.min(1,Math.hypot(candidate.pose.x-other.pose.x,candidate.pose.y-other.pose.y)/config.getOutlierDistanceInches())+Math.min(1,Math.abs(wrap(candidate.pose.heading-other.pose.heading))/outlierHeadingRadians);
-            if(cost<bestCost || (cost==bestCost && (best==null || candidate.weight>best.weight))){best=candidate;bestCost=cost;}
-        }
-        return best.pose;
-    }
-
-    private FieldPose limitStep(FieldPose oldPose, FieldPose measurement) {
-        if (oldPose == null) return measurement;
-        double x = measurement.x;
-        double y = measurement.y;
-        double h = measurement.heading;
-        if (config.getMaxStepInches() > 0) {
-            double dx = x - oldPose.x;
-            double dy = y - oldPose.y;
-            double dist = Math.hypot(dx, dy);
-            if (dist > config.getMaxStepInches()) {
-                double s = config.getMaxStepInches() / dist;
-                x = oldPose.x + dx * s;
-                y = oldPose.y + dy * s;
-            }
-        }
-        if (config.getMaxStepDegrees() > 0) {
-            double maxRad = Math.toRadians(config.getMaxStepDegrees());
-            double dh = wrap(h - oldPose.heading);
-            if (Math.abs(dh) > maxRad) h = wrap(oldPose.heading + Math.copySign(maxRad, dh));
-        }
-        return new FieldPose(x, y, h);
-    }
-
-    private static Uncertainty uncertainty(List<Estimate> inliers, FieldPose measurement) {
-        double sumD = 0;
-        double sumH = 0;
-        double sumRangeProxy = 0;
-        for (Estimate e : inliers) {
-            sumD += Math.hypot(e.pose.x - measurement.x, e.pose.y - measurement.y);
-            sumH += Math.abs(wrap(e.pose.heading - measurement.heading));
-            sumRangeProxy += 1.0 / Math.max(e.weight, 1e-6);
-        }
-        int n = inliers.size();
-        double residualInches = sumD / n;
-        double residualHeading = sumH / n;
-        double spread = Math.max(0.5, residualInches);
-        double sigmaXY = spread * Math.sqrt(sumRangeProxy / n) / Math.sqrt(n);
-        double sigmaH = Math.max(Math.toRadians(1), residualHeading) / Math.sqrt(n);
-        return new Uncertainty(sigmaXY, sigmaXY, sigmaH, residualInches, residualHeading);
-    }
-
     private static void markRejected(List<TagDebug> reports, int id, String reason) {
         for (int i = 0; i < reports.size(); i++) {
             TagDebug t = reports.get(i);
@@ -1032,10 +897,8 @@ public final class EasyATL {
         return Collections.unmodifiableList(out);
     }
 
-    private static FieldPose blend(FieldPose oldPose,FieldPose newPose,double a){return new FieldPose(oldPose.x+a*(newPose.x-oldPose.x),oldPose.y+a*(newPose.y-oldPose.y),wrap(oldPose.heading+a*wrap(newPose.heading-oldPose.heading)));}
     private void decayConfidence(long now){if(lastConfidenceTime==0)return;confidence*=Math.exp(-config.getQualityDecayRate()*Math.max(0,now-lastConfidenceTime)/1e9);lastConfidenceTime=now;}
-    static double wrap(double a){while(a>Math.PI)a-=2*Math.PI;while(a<=-Math.PI)a+=2*Math.PI;return a;}
-    private static double clamp(double v,double min,double max){return Math.max(min,Math.min(max,v));}
+    static double wrap(double a){return EasyATLMath.wrap(a);}
     private static CameraConfig requireCamera(CameraConfig value){if(value==null)throw new IllegalArgumentException("camera config cannot be null");return value;}
     private static Config requireConfig(Config value){if(value==null)throw new IllegalArgumentException("config cannot be null");return value;}
     private static void requireFinite(String name,double value){if(!Double.isFinite(value))throw new IllegalArgumentException(name+" must be finite");}

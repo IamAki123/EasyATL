@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Sample OpMode](SampleOpMode.md) · [Troubleshooting](Troubleshooting.md)
 
-Current JitPack version: **1.2.1** (must match a [git tag](https://github.com/IamAki123/EasyATL/releases)).
+Current JitPack version: **1.2.2** (must match a [git tag](https://github.com/IamAki123/EasyATL/releases)).
 
 ## What you need
 
@@ -50,7 +50,7 @@ In `TeamCode/build.gradle`:
 ```gradle
 dependencies {
     implementation project(':FtcRobotController')
-    implementation 'com.github.IamAki123:EasyATL:1.2.1'
+    implementation 'com.github.IamAki123:EasyATL:1.2.2'
 }
 ```
 

@@ -10,6 +10,10 @@ import java.util.Locale;
  * {@code new Pose(pose.x, pose.y, pose.heading)} (Pedro) or
  * {@code new Pose2d(pose.x, pose.y, pose.heading)} (Road Runner). Or implement
  * {@link PoseCorrector}.</p>
+ *
+ * <p>{@link #equals(Object)} / {@link #hashCode()} treat headings that wrap to the same angle as
+ * equal ({@code π} and {@code −π} are the same heading). The stored {@code heading} field is not
+ * rewritten.</p>
  */
 public final class FieldPose {
     /** Robot center field X, inches. */
@@ -45,14 +49,14 @@ public final class FieldPose {
         FieldPose other = (FieldPose) obj;
         return Double.compare(x, other.x) == 0
                 && Double.compare(y, other.y) == 0
-                && Double.compare(heading, other.heading) == 0;
+                && Double.compare(EasyATLMath.wrap(heading), EasyATLMath.wrap(other.heading)) == 0;
     }
 
     @Override
     public int hashCode() {
         int result = Double.valueOf(x).hashCode();
         result = 31 * result + Double.valueOf(y).hashCode();
-        result = 31 * result + Double.valueOf(heading).hashCode();
+        result = 31 * result + Double.valueOf(EasyATLMath.wrap(heading)).hashCode();
         return result;
     }
 

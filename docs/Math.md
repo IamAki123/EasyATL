@@ -121,7 +121,7 @@ Defaults: `qualityCountBase = 0.75`, `qualityCountPerTag = 0.125` (same as the o
 | `d` | `outlierDistanceInches` |
 | `qualityCountBase` / `qualityCountPerTag` | `Config` knobs; defaults keep 1.1.x single-tag quality |
 
-One tag has residual 0, so `consistency = 1` (same as 1.1.x for a single tag).
+One tag has residual 0, so `consistency = 1`. With the default knobs, `countBoost` for `nIn = 1` is `min(1, 0.75 + 0.125) = 0.875` — the same 1.1.x single-tag formula.
 
 ### 12. Uncertainty (rough, not calibrated)
 

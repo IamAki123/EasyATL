@@ -8,7 +8,7 @@ The sample opens `Webcam 1` with a `VisionPortal` and applies vision through `Po
 
 ## Before you paste
 
-1. [Install](Install.md) EasyATL **1.2.1** and sync Gradle.
+1. [Install](Install.md) EasyATL **1.2.2** and sync Gradle.
 2. Fill in `PedroEasyATLConstants.createFollower` with **your** Pedro `Constants.createFollower`. Do not import Super Sigma / OFSB1 classes.
 3. Tape-measure the **lens** (forward/right/yaw/**pitch**) and tags. Put those numbers in Constants. `createLocalizer` calls `useLatestSeason()`.
 4. Keep `APPLY_VISION_CORRECTION = false` until Driver Station vision pose matches tape.

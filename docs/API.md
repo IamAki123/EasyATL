@@ -34,7 +34,13 @@ EasyATL.Config config = new EasyATL.Config()
         .setSmoothingAlpha(0.65)
         .setQualityDecayRate(0.8)
         .setWeightRangeScaleInches(36)
-        .setDecisionMarginScale(50);
+        .setDecisionMarginScale(50)
+        .setMinWeight(0.05)
+        .setQualityCountBase(0.75)
+        .setQualityCountPerTag(0.125)
+        .setMaxObservationAgeMs(0)
+        .setMaxStepInches(0)
+        .setMaxStepDegrees(0);
 ```
 
 | Method | Default | What it does | Caveats |
@@ -146,7 +152,7 @@ Replaces the camera mount after construction.
 
 **Returns:** `this`.
 
-**Caveats:** `null` throws. `FtcEasyATL` does not expose this method; recreate the adapter if the mount changes. Only available on `EasyATL`.
+**Caveats:** `null` throws. `FtcEasyATL` has the same method. Recreate the adapter only if you prefer a new instance.
 
 #### `setConfig(Config value)` / `getConfig()`
 
@@ -307,7 +313,7 @@ new FieldPose(double x, double y, double heading)
 | `heading` | Robot heading in radians, CCW-positive, `0` along field `+X`. |
 | `headingDegrees()` | Same heading in degrees. |
 
-**Caveats:** `heading` is **radians**, not degrees. Convert with `pose.headingDegrees()` or `Math.toDegrees(pose.heading)` for telemetry. `x`, `y`, and `heading` must be finite. `equals` / `hashCode` / `toString` compare the stored numbers (heading is not wrapped in `equals`). EasyATL does not depend on Pedro or Road Runner; convert at the call site (`PoseCorrector`, `new Pose(...)`, or `new Pose2d(...)`).
+**Caveats:** `heading` is **radians**, not degrees. Convert with `pose.headingDegrees()` or `Math.toDegrees(pose.heading)` for telemetry. `x`, `y`, and `heading` must be finite. `equals` / `hashCode` wrap heading into `(−π, π]` so `π` and `−π` are the same heading; `toString` prints the stored (unwrapped) `heading`. EasyATL does not depend on Pedro or Road Runner; convert at the call site (`PoseCorrector`, `new Pose(...)`, or `new Pose2d(...)`).
 
 ### `FieldTags`
 <a id="fieldtags"></a>

@@ -2,9 +2,17 @@
 
 All notable releases are listed here. Install with JitPack using the **git tag** as the version:
 
-`implementation 'com.github.IamAki123:EasyATL:1.2.1'`
+`implementation 'com.github.IamAki123:EasyATL:1.2.2'`
 
 ## Unreleased
+
+## 1.2.2
+
+Compatible with 1.2.1 filter defaults (`new EasyATL.Config()`, `new FtcEasyATL(camera)`). Single-tag quality is unchanged.
+
+- `FieldPose.equals` / `hashCode` wrap heading (`π` ≡ `−π`); stored heading is unchanged
+- Pose math (weight, robust center, blend, `toPose`, quality) moved to package-private `EasyATLMath`
+- Tests for `setMaxStepDegrees`, `setMaxObservationAgeMs(0)`, and default single-tag quality
 
 ## 1.2.1
 
