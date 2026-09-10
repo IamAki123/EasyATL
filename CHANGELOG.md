@@ -2,9 +2,18 @@
 
 All notable releases are listed here. Install with JitPack using the **git tag** as the version:
 
-`implementation 'com.github.IamAki123:EasyATL:1.2.0'`
+`implementation 'com.github.IamAki123:EasyATL:1.2.1'`
 
 ## Unreleased
+
+## 1.2.1
+
+Compatible with 1.2.0 filter defaults (`new EasyATL.Config()`, `new FtcEasyATL(camera)`).
+
+- `PoseCorrector` in the AAR; Pedro copy-in files live under `tuning/pedro/` (`PedroEasyATLConstants`, no Super Sigma / OFSB1 placeholders)
+- `localize()` stages extracted; quality formula in `scoreQuality()` with `setQualityCountBase` / `setQualityCountPerTag` (same 1.2.0 numeric defaults)
+- `FieldPose` `equals` / `hashCode` / `toString`; NaN / `range <= 0` observations skipped
+- Pedro **Vision telemetry** no longer requires a follower
 
 ## 1.2.0
 

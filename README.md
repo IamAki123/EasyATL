@@ -27,7 +27,7 @@ It does **not** replace MegaTag botpose if you already trust that pipeline. Use 
 
 **Expected accuracy:** measure *your* robot. With a taped lens mount, correct tag map, and tags at 3–4 ft, **1–3 in** XY and a few degrees of heading is a common good result — not a guarantee. Lighting, calibration, pitch, and field setup dominate. Error that *grows with distance* is usually pitch, lens vs housing, or calibration, not a missing filter. How to score tape vs vision: [Tuning](docs/Tuning.md#measuring-accuracy).
 
-**Current release:** [1.2.0](https://github.com/IamAki123/EasyATL/releases/tag/1.2.0). Camera pitch, official tag maps, `DefaultSdkConstants`, the SDK tuner, and debug/uncertainty APIs. JitPack: `com.github.IamAki123:EasyATL:1.2.0`.
+**Current release:** [1.2.1](https://github.com/IamAki123/EasyATL/releases/tag/1.2.1). Camera pitch, official tag maps, `DefaultSdkConstants`, `PoseCorrector`, the SDK tuner, and debug/uncertainty APIs. JitPack: `com.github.IamAki123:EasyATL:1.2.1`.
 
 ## First time here?
 
@@ -36,7 +36,7 @@ Do these in order. Each step has a longer page if you get stuck.
 | Step | What you do | Details |
 | --- | --- | --- |
 | 1 | Add the JitPack dependency and sync Gradle | [Install](docs/Install.md) |
-| 2 | Configure camera and tags | SDK: AAR defaults work (`DefaultSdkConstants` / `new FtcEasyATL()`). Copy [`EasyATLSdkConstants`](tuning/sdk/EasyATLSdkConstants.java) only to override. Pedro: copy [`EasyATLConstants`](tuning/EasyATLConstants.java) |
+| 2 | Configure camera and tags | SDK: AAR defaults work (`DefaultSdkConstants` / `new FtcEasyATL()`). Copy [`EasyATLSdkConstants`](tuning/sdk/EasyATLSdkConstants.java) only to override. Pedro: copy [`PedroEasyATLConstants`](tuning/pedro/PedroEasyATLConstants.java) |
 | 3 | Measure the **lens** (forward/right/yaw/**pitch**) and tags, or call `addCurrentGameTags()` | Filters cannot fix wrong geometry |
 | 4 | Run a TeleOp that only *prints* vision pose (`APPLY_VISION_CORRECTION = false`) | [Pedro sample](docs/SampleOpMode.md) · [SDK sample](docs/SampleOpModeSdk.md) |
 | 5 | When tape and vision agree, tune filters, then turn correction on | [Tuning](docs/Tuning.md) |
@@ -44,7 +44,7 @@ Do these in order. Each step has a longer page if you get stuck.
 Pedro Pathing is required only for the Pedro copy-in tuner and sample. Core `EasyATL` / `FtcEasyATL` have no Pedro dependency. Road Runner teams should use the [SDK tuner](tuning/sdk/EasyATLSdkTuner.java).
 
 ```text
-DefaultSdkConstants (AAR) or EasyATLSdkConstants / EasyATLConstants (TeamCode)
+DefaultSdkConstants (AAR) or EasyATLSdkConstants / PedroEasyATLConstants (TeamCode)
         camera, tags, Config, webcam
                 │
                 ▼
@@ -67,7 +67,7 @@ repositories {
 Then in `TeamCode/build.gradle`, inside `dependencies`:
 
 ```gradle
-implementation 'com.github.IamAki123:EasyATL:1.2.0'
+implementation 'com.github.IamAki123:EasyATL:1.2.1'
 ```
 
 If Pedro (or other libraries) already live in `build.dependencies.gradle`’s `dependencies` block, put that `implementation` line there instead.
@@ -79,15 +79,15 @@ Sync errors about repositories, a local source module, or JDK versions: [Install
 <a id="configure-the-robot"></a>
 ## 2. Configure the robot once
 
-> ‼️ **Point TeleOp and auto at the constants file you actually use.** Copying `EasyATLSdkConstants` or `EasyATLConstants` does nothing by itself. If those OpModes still call `DefaultSdkConstants` — or you never copied a constants file — EasyATL keeps the AAR defaults (`Webcam 1`, lens at robot center, latest season). Switch the `init()` factory calls: [Tuning → Where to switch](docs/Tuning.md#where-to-switch-to-easyatlsdkconstants).
+> ‼️ **Point TeleOp and auto at the constants file you actually use.** Copying `EasyATLSdkConstants` or `PedroEasyATLConstants` does nothing by itself. If those OpModes still call `DefaultSdkConstants` — or you never copied a constants file — EasyATL keeps the AAR defaults (`Webcam 1`, lens at robot center, latest season). Switch the `init()` factory calls: [Tuning → Where to switch](docs/Tuning.md#where-to-switch-to-easyatlsdkconstants).
 
-Copy [`tuning/EasyATLConstants.java`](tuning/EasyATLConstants.java) into TeamCode (package `org.firstinspires.ftc.teamcode.easyatl` if you also copy the tuner).
+Copy [`tuning/pedro/PedroEasyATLConstants.java`](tuning/pedro/PedroEasyATLConstants.java) into TeamCode (package `org.firstinspires.ftc.teamcode.easyatl` if you also copy the tuner).
 
 SDK / Road Runner teams can skip this file. `DefaultSdkConstants` (in the AAR) and `new FtcEasyATL()` already register latest-season tags, webcam `Webcam 1`, and a camera at robot center. Copy [`tuning/sdk/EasyATLSdkConstants.java`](tuning/sdk/EasyATLSdkConstants.java) only when you need different lens numbers, webcam name, or tags.
 
-There is no separate config file. Camera, tags, pipeline `Config`, webcam, and Pedro follower belong in **the copy-in class**. `config()` is a method on it.
+There is no separate config file. Camera, tags, pipeline `Config`, webcam name, and Pedro follower belong in **the copy-in class**. `config()` is a method on it.
 
-The copy-in file imports Super Sigma placeholders (`AprilTagWebcam`, `OFSB1.Constants`). Replace those with **your** webcam helper and Pedro `Constants.createFollower`. Keep drivetrain PID and motor names in your existing Pedro `Constants`.
+Fill in `PedroEasyATLConstants.createFollower` with **your** Pedro `Constants.createFollower`. Webcam creation uses FTC `VisionPortal` (no Super Sigma / OFSB1 placeholders). Keep drivetrain PID and motor names in your existing Pedro `Constants`.
 
 Then edit the EasyATL values. The `Config` numbers below are a **sample starting point**, not library defaults (`new EasyATL.Config()` uses 96 in range and 0.65 smoothing — [API](docs/API.md)):
 
@@ -117,7 +117,7 @@ public static void addTags(FtcEasyATL localizer) {
 }
 ```
 
-`createLocalizer(config())` builds `FtcEasyATL` from `camera()`, that `Config`, and `addTags()`. EasyATL does not open the webcam; `createWebcam` does.
+`createLocalizer(config())` builds `FtcEasyATL` from `camera()`, that `Config`, and `addTags()`. EasyATL does not open the webcam; `createPortal` (SDK / Pedro copy-in) does.
 
 ### Coordinates (read once)
 
@@ -135,20 +135,21 @@ Add every tag ID the camera might see. Default is `useLatestSeason()` (DECODE). 
 <a id="use-in-opmode"></a>
 ## 3. Use it in an OpMode
 
-Do not paste camera numbers, tags, or a new `EasyATL.Config()` into every OpMode. Call the factories from one constants class (`EasyATLConstants`, `EasyATLSdkConstants`, or `DefaultSdkConstants`).
+Do not paste camera numbers, tags, or a new `EasyATL.Config()` into every OpMode. Call the factories from one constants class (`PedroEasyATLConstants`, `EasyATLSdkConstants`, or `DefaultSdkConstants`).
 
-Leave `APPLY_VISION_CORRECTION` **false** until printed vision pose matches tape. `0.20` is a sample quality gate in the sample/tuner, not a library constant. Swap `AprilTagWebcam` if `createWebcam` returns a different type.
+Leave `APPLY_VISION_CORRECTION` **false** until printed vision pose matches tape. `0.20` is a sample quality gate in the sample/tuner, not a library constant.
 
 **Imports**
 
 ```java
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
 
-import org.firstinspires.ftc.easyatl.FieldPose;
 import org.firstinspires.ftc.easyatl.FtcEasyATL;
-import org.firstinspires.ftc.teamcode.easyatl.EasyATLConstants;
-import org.firstinspires.ftc.teamcode.Mechanisms.AprilTagWebcam;
+import org.firstinspires.ftc.easyatl.PoseCorrector;
+import org.firstinspires.ftc.teamcode.easyatl.PedroEasyATLConstants;
+import org.firstinspires.ftc.teamcode.easyatl.PedroPoseCorrector;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 ```
 
 **Fields**
@@ -157,29 +158,31 @@ import org.firstinspires.ftc.teamcode.Mechanisms.AprilTagWebcam;
 private static final boolean APPLY_VISION_CORRECTION = false;
 
 private Follower follower;
-private AprilTagWebcam webcam;
+private PoseCorrector corrector;
+private AprilTagProcessor processor;
+private VisionPortal portal;
 private FtcEasyATL localizer;
 ```
 
 **`init()`**
 
 ```java
-follower = EasyATLConstants.createFollower(hardwareMap);
-webcam = EasyATLConstants.createWebcam(hardwareMap, telemetry);
-localizer = EasyATLConstants.createLocalizer(EasyATLConstants.config());
+follower = PedroEasyATLConstants.createFollower(hardwareMap);
+corrector = new PedroPoseCorrector(follower);
+processor = PedroEasyATLConstants.createProcessor();
+portal = PedroEasyATLConstants.createPortal(hardwareMap, processor, telemetry);
+localizer = PedroEasyATLConstants.createLocalizer(PedroEasyATLConstants.config());
 ```
 
 **`loop()`** (after you already call `follower.update()`, or include it as shown)
 
 ```java
-webcam.update();
 follower.update();
 
-boolean accepted = localizer.localize(webcam.getDetectedTags());
+boolean accepted = localizer.localize(processor.getDetections());
 
-if (APPLY_VISION_CORRECTION && accepted && localizer.getQuality() >= 0.20) {
-    FieldPose visionPose = localizer.getPose();
-    follower.setPose(new Pose(visionPose.x, visionPose.y, visionPose.heading));
+if (APPLY_VISION_CORRECTION && accepted && localizer.getQuality() >= 0.20 && localizer.hasPose()) {
+    corrector.apply(localizer.getPose());
 }
 ```
 
@@ -201,7 +204,7 @@ boolean accepted = localizer.localize(processor.getDetections());
 
 ## 4. Tune (practice, not matches)
 
-[`EasyATLTuning`](tuning/EasyATLTuning.java) is the Pedro practice tuner (`SelectableOpMode` list). [`EasyATLSdkTuner`](tuning/sdk/EasyATLSdkTuner.java) is the same knobs with a plain D-pad menu and **no drivetrain**. Do not select either during a match.
+[`PedroEasyATLTuning`](tuning/pedro/PedroEasyATLTuning.java) is the Pedro practice tuner (`SelectableOpMode` list). **Vision telemetry** does not create a follower. [`EasyATLSdkTuner`](tuning/sdk/EasyATLSdkTuner.java) is the same knobs with a plain D-pad menu and **no drivetrain**. Do not select either during a match.
 
 1. Driver Station → **EasyATL Tuning** (Pedro) or **EasyATL Tuner** (SDK). **Before Play**, pick a row (D-pad up/down; Pedro also uses right to select). Start with **Vision telemetry**.
 2. Press **Play**. On a filter test, D-pad **changes that one setting** (up/down = small step, left/right = large step). Change one value at a time. The SDK tuner prints per-tag OK/REJECT reasons and residual.
@@ -209,7 +212,7 @@ boolean accepted = localizer.localize(processor.getDetections());
 
 Tape the **lens** (including pitch) and tag map first. A short walkthrough of the tuner screens is in [Tuning](docs/Tuning.md); there is no separate video in this repo.
 
-[Tuning guide](docs/Tuning.md) · [Pedro copy checklist](tuning/README.md) · [SDK copy checklist](tuning/sdk/README.md)
+[Tuning guide](docs/Tuning.md) · [Pedro copy checklist](tuning/pedro/README.md) · [SDK copy checklist](tuning/sdk/README.md)
 
 ## Docs
 

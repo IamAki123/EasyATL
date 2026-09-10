@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.easyatl;
 
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
 import com.pedropathing.telemetry.SelectableOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -10,32 +9,33 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.easyatl.EasyATL;
 import org.firstinspires.ftc.easyatl.FieldPose;
 import org.firstinspires.ftc.easyatl.FtcEasyATL;
-import org.firstinspires.ftc.teamcode.Mechanisms.AprilTagWebcam;
+import org.firstinspires.ftc.easyatl.PoseCorrector;
+import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Practice tuner (Pedro {@code SelectableOpMode} list in init). Do not use in matches.
+ * Pedro practice tuner ({@code SelectableOpMode} list in init). Do not use in matches.
  *
- * <p>Copy with {@code EasyATLConstants.java} into TeamCode. Configure tags, camera, webcam, and
- * follower only in {@link EasyATLConstants}.</p>
- *
- * <p>Before Play: D-pad up/down moves the highlight, right selects, left goes back.
- * After Play: drive with sticks/triggers; D-pad changes the live {@link EasyATL.Config} on
- * filter tests. Telemetry shows PASS/FAIL and a snippet to paste into Constants.</p>
+ * <p>Copy with {@code PedroEasyATLConstants} into TeamCode. <strong>Vision telemetry</strong> does
+ * not create a Pedro follower — fill in {@code createFollower} only when you pick a driving test
+ * or Apply vision correction.</p>
  *
  * <p>Not compiled into the EasyATL AAR.</p>
  */
 @TeleOp(name = "EasyATL Tuning", group = "EasyATL")
-public class EasyATLTuning extends SelectableOpMode {
+public class PedroEasyATLTuning extends SelectableOpMode {
     static Follower follower;
-    static AprilTagWebcam webcam;
+    static PoseCorrector corrector;
+    static AprilTagProcessor processor;
+    static VisionPortal portal;
     static FtcEasyATL localizer;
     static EasyATL.Config config;
 
-    public EasyATLTuning() {
+    public PedroEasyATLTuning() {
         super("Select a test", s -> {
             s.add("Vision telemetry", VisionTelemetry::new);
             s.add("Apply vision correction", ApplyCorrection::new);
@@ -51,26 +51,37 @@ public class EasyATLTuning extends SelectableOpMode {
 
     @Override
     public void onSelect() {
-        follower = EasyATLConstants.createFollower(hardwareMap);
-        webcam = EasyATLConstants.createWebcam(hardwareMap, telemetry);
-        config = EasyATLConstants.config();
-        localizer = EasyATLConstants.createLocalizer(config);
+        processor = PedroEasyATLConstants.createProcessor();
+        portal = PedroEasyATLConstants.createPortal(hardwareMap, processor, telemetry);
+        config = PedroEasyATLConstants.config();
+        localizer = PedroEasyATLConstants.createLocalizer(config);
+        follower = null;
+        corrector = null;
     }
 
     @Override
     public void onLog(List<String> lines) {}
 
+    /** Vision only — no follower, no driving. */
     static void visionTick() {
-        webcam.update();
-        follower.update();
-        localizer.localize(webcam.getDetectedTags());
+        localizer.localize(processor.getDetections());
     }
 
     static void applyConfig() {
         localizer.setConfig(config);
     }
 
-    static void drive(Gamepad gamepad) {
+    static void ensureDrive(OpMode opMode) {
+        if (follower != null) return;
+        follower = PedroEasyATLConstants.createFollower(opMode.hardwareMap);
+        corrector = new PedroPoseCorrector(follower);
+        follower.startTeleopDrive();
+    }
+
+    static void driveTick(OpMode opMode) {
+        ensureDrive(opMode);
+        follower.update();
+        Gamepad gamepad = opMode.gamepad1;
         follower.setTeleOpDrive(-gamepad.left_stick_y, gamepad.left_trigger - gamepad.right_trigger,
                 -gamepad.right_stick_x, true);
     }
@@ -79,20 +90,22 @@ public class EasyATLTuning extends SelectableOpMode {
         if (localizer.hasPose()) {
             FieldPose p = localizer.getPose();
             opMode.telemetry.addData("Vision", "(%.1f, %.1f, %.1f deg)",
-                    p.x, p.y, Math.toDegrees(p.heading));
+                    p.x, p.y, p.headingDegrees());
             opMode.telemetry.addData("Quality", "%.0f%%", 100 * localizer.getQuality());
             opMode.telemetry.addData("Visible", localizer.getVisibleTags());
             opMode.telemetry.addData("Accepted", localizer.getAcceptedTags());
         } else {
             opMode.telemetry.addLine("No vision pose yet");
         }
-        Pose odo = follower.getPose();
-        opMode.telemetry.addData("Drive pose", "(%.1f, %.1f, %.1f deg)",
-                odo.getX(), odo.getY(), Math.toDegrees(odo.getHeading()));
+        if (follower != null) {
+            opMode.telemetry.addData("Drive pose", "(%.1f, %.1f, %.1f deg)",
+                    follower.getPose().getX(), follower.getPose().getY(),
+                    Math.toDegrees(follower.getPose().getHeading()));
+        }
     }
 
     static void printDetections(OpMode opMode) {
-        List<AprilTagDetection> detections = webcam.getDetectedTags();
+        List<AprilTagDetection> detections = processor.getDetections();
         opMode.telemetry.addData("Raw tags", detections.size());
         for (AprilTagDetection d : detections) {
             if (d.ftcPose == null) {
@@ -140,6 +153,10 @@ public class EasyATLTuning extends SelectableOpMode {
         if (g.dpadLeftWasPressed()) value -= large;
         return Math.max(min, Math.min(max, value));
     }
+
+    static void closePortal() {
+        if (portal != null) portal.close();
+    }
 }
 
 class VisionTelemetry extends OpMode {
@@ -147,24 +164,18 @@ class VisionTelemetry extends OpMode {
     public void init() {}
 
     @Override
-    public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
-    }
-
-    @Override
     public void loop() {
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
-        telemetry.addLine("Telemetry only. Does not set Pedro pose.");
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printDebug(this);
-        EasyATLTuning.printDetections(this);
+        PedroEasyATLTuning.visionTick();
+        telemetry.addLine("Vision only. No Pedro follower. Does not set drive pose.");
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printDebug(this);
+        PedroEasyATLTuning.printDetections(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -174,27 +185,23 @@ class ApplyCorrection extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.webcam.update();
-        EasyATLTuning.follower.update();
-        boolean accepted = EasyATLTuning.localizer.localize(EasyATLTuning.webcam.getDetectedTags());
-        EasyATLTuning.drive(gamepad1);
-        if (accepted && EasyATLTuning.localizer.getQuality() >= 0.20 && EasyATLTuning.localizer.hasPose()) {
-            FieldPose v = EasyATLTuning.localizer.getPose();
-            EasyATLTuning.follower.setPose(new Pose(v.x, v.y, v.heading));
-        }
+        PedroEasyATLTuning.driveTick(this);
+        boolean accepted = PedroEasyATLTuning.localizer.localize(
+                PedroEasyATLTuning.processor.getDetections(), PedroEasyATLTuning.corrector, 0.20);
         telemetry.addLine("Sets Pedro pose when a quality-approved frame is accepted.");
-        EasyATLTuning.printPose(this);
+        telemetry.addData("Applied this loop", accepted && PedroEasyATLTuning.localizer.getQuality() >= 0.20);
+        PedroEasyATLTuning.printPose(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -204,31 +211,31 @@ class MaxRangeTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setMaxRangeInches(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getMaxRangeInches(), 1, 6, 1, 200));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setMaxRangeInches(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getMaxRangeInches(), 1, 6, 1, 200));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("D-pad U/D ±1 in, L/R ±6 in. Increase if useful tags are dropped for range.");
-        telemetry.addData("maxRangeInches", EasyATLTuning.config.getMaxRangeInches());
-        for (AprilTagDetection d : EasyATLTuning.webcam.getDetectedTags()) {
+        telemetry.addData("maxRangeInches", PedroEasyATLTuning.config.getMaxRangeInches());
+        for (AprilTagDetection d : PedroEasyATLTuning.processor.getDetections()) {
             if (d.ftcPose == null) continue;
-            boolean in = d.ftcPose.range > 0 && d.ftcPose.range <= EasyATLTuning.config.getMaxRangeInches();
+            boolean in = d.ftcPose.range > 0 && d.ftcPose.range <= PedroEasyATLTuning.config.getMaxRangeInches();
             telemetry.addData("Tag " + d.id, "range %.1f  %s", d.ftcPose.range, in ? "PASS" : "FAIL range");
         }
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -238,31 +245,31 @@ class MaxBearingTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setMaxBearingDegrees(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getMaxBearingDegrees(), 1, 5, 0, 90));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setMaxBearingDegrees(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getMaxBearingDegrees(), 1, 5, 0, 90));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("D-pad U/D ±1°, L/R ±5°. Increase if edge-of-frame tags are still stable.");
-        telemetry.addData("maxBearingDegrees", EasyATLTuning.config.getMaxBearingDegrees());
-        for (AprilTagDetection d : EasyATLTuning.webcam.getDetectedTags()) {
+        telemetry.addData("maxBearingDegrees", PedroEasyATLTuning.config.getMaxBearingDegrees());
+        for (AprilTagDetection d : PedroEasyATLTuning.processor.getDetections()) {
             if (d.ftcPose == null) continue;
-            boolean in = Math.abs(d.ftcPose.bearing) <= EasyATLTuning.config.getMaxBearingDegrees();
+            boolean in = Math.abs(d.ftcPose.bearing) <= PedroEasyATLTuning.config.getMaxBearingDegrees();
             telemetry.addData("Tag " + d.id, "bearing %.1f  %s", d.ftcPose.bearing, in ? "PASS" : "FAIL bearing");
         }
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -272,31 +279,31 @@ class MaxTagYawTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setMaxTagYawDegrees(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getMaxTagYawDegrees(), 1, 5, 0, 90));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setMaxTagYawDegrees(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getMaxTagYawDegrees(), 1, 5, 0, 90));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("D-pad U/D ±1°, L/R ±5°. Increase if steep yaw still looks accurate.");
-        telemetry.addData("maxTagYawDegrees", EasyATLTuning.config.getMaxTagYawDegrees());
-        for (AprilTagDetection d : EasyATLTuning.webcam.getDetectedTags()) {
+        telemetry.addData("maxTagYawDegrees", PedroEasyATLTuning.config.getMaxTagYawDegrees());
+        for (AprilTagDetection d : PedroEasyATLTuning.processor.getDetections()) {
             if (d.ftcPose == null) continue;
-            boolean in = Math.abs(d.ftcPose.yaw) <= EasyATLTuning.config.getMaxTagYawDegrees();
+            boolean in = Math.abs(d.ftcPose.yaw) <= PedroEasyATLTuning.config.getMaxTagYawDegrees();
             telemetry.addData("Tag " + d.id, "yaw %.1f  %s", d.ftcPose.yaw, in ? "PASS" : "FAIL yaw");
         }
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -306,26 +313,26 @@ class OutlierDistanceTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setOutlierDistanceInches(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getOutlierDistanceInches(), 1, 4, 1, 48));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setOutlierDistanceInches(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getOutlierDistanceInches(), 1, 4, 1, 48));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("Need 2+ tags. If a good tag is dropped, increase; if pose jumps, decrease.");
-        telemetry.addData("outlierDistanceInches", EasyATLTuning.config.getOutlierDistanceInches());
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        telemetry.addData("outlierDistanceInches", PedroEasyATLTuning.config.getOutlierDistanceInches());
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -335,26 +342,26 @@ class OutlierHeadingTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setOutlierHeadingDegrees(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getOutlierHeadingDegrees(), 1, 5, 1, 90));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setOutlierHeadingDegrees(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getOutlierHeadingDegrees(), 1, 5, 1, 90));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("Need 2+ tags. Heading jumps → decrease. Good tags dropped → increase.");
-        telemetry.addData("outlierHeadingDegrees", EasyATLTuning.config.getOutlierHeadingDegrees());
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        telemetry.addData("outlierHeadingDegrees", PedroEasyATLTuning.config.getOutlierHeadingDegrees());
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -364,26 +371,26 @@ class SmoothingAlphaTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setSmoothingAlpha(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getSmoothingAlpha(), 0.05, 0.15, 0, 1));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setSmoothingAlpha(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getSmoothingAlpha(), 0.05, 0.15, 0, 1));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("1.0 = no smoothing (jitter). Lower = steadier, more lag.");
-        telemetry.addData("smoothingAlpha", "%.2f", EasyATLTuning.config.getSmoothingAlpha());
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        telemetry.addData("smoothingAlpha", "%.2f", PedroEasyATLTuning.config.getSmoothingAlpha());
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }
 
@@ -393,26 +400,26 @@ class QualityDecayTuner extends OpMode {
 
     @Override
     public void start() {
-        EasyATLTuning.follower.startTeleopDrive();
+        PedroEasyATLTuning.ensureDrive(this);
     }
 
     @Override
     public void loop() {
-        EasyATLTuning.config.setQualityDecayRate(EasyATLTuning.bump(gamepad1,
-                EasyATLTuning.config.getQualityDecayRate(), 0.05, 0.2, 0, 4));
-        EasyATLTuning.applyConfig();
-        EasyATLTuning.visionTick();
-        EasyATLTuning.drive(gamepad1);
+        PedroEasyATLTuning.config.setQualityDecayRate(PedroEasyATLTuning.bump(gamepad1,
+                PedroEasyATLTuning.config.getQualityDecayRate(), 0.05, 0.2, 0, 4));
+        PedroEasyATLTuning.applyConfig();
+        PedroEasyATLTuning.driveTick(this);
+        PedroEasyATLTuning.visionTick();
         telemetry.addLine("Cover the lens: quality should fall. Higher rate = untrusted sooner.");
-        telemetry.addData("qualityDecayRate", "%.2f /s", EasyATLTuning.config.getQualityDecayRate());
-        telemetry.addData("Quality now", "%.0f%%", 100 * EasyATLTuning.localizer.getQuality());
-        EasyATLTuning.printPose(this);
-        EasyATLTuning.printSnippet(this);
+        telemetry.addData("qualityDecayRate", "%.2f /s", PedroEasyATLTuning.config.getQualityDecayRate());
+        telemetry.addData("Quality now", "%.0f%%", 100 * PedroEasyATLTuning.localizer.getQuality());
+        PedroEasyATLTuning.printPose(this);
+        PedroEasyATLTuning.printSnippet(this);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        EasyATLTuning.webcam.stop();
+        PedroEasyATLTuning.closePortal();
     }
 }

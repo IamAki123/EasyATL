@@ -106,9 +106,11 @@ Heading is wrapped the short way. `α` is `smoothingAlpha`. **`α = 1`** means n
 ```text
 q  =  clamp( meanWeight * (nIn / nEst) * countBoost * consistency,  0,  1 )
 
-countBoost    =  min(1,  0.75 + 0.125 * nIn)
+countBoost    =  min(1,  qualityCountBase + qualityCountPerTag * nIn)
 consistency   =  1 / (1 + residual / d)
 ```
+
+Defaults: `qualityCountBase = 0.75`, `qualityCountPerTag = 0.125` (same as the old hardcoded `0.75 + 0.125 * nIn`).
 
 | Symbol | Meaning |
 | --- | --- |
@@ -117,6 +119,7 @@ consistency   =  1 / (1 + residual / d)
 | `nEst` | Number of estimates that passed the hard filters |
 | `residual` | Mean distance of inliers from the fused pose |
 | `d` | `outlierDistanceInches` |
+| `qualityCountBase` / `qualityCountPerTag` | `Config` knobs; defaults keep 1.1.x single-tag quality |
 
 One tag has residual 0, so `consistency = 1` (same as 1.1.x for a single tag).
 

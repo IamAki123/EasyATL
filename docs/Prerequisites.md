@@ -16,7 +16,7 @@ EasyATL is a **filter on top of detections you already have**. It does not creat
 
 **You are ready for EasyATL when** an OpMode already prints raw tag IDs and `ftcPose.range` on the Driver Station. If that line is still empty, stop and finish [AprilTag detections](AprilTagDetections.md). Filters cannot invent a pose from zero detections.
 
-This documentation matches **1.2.0**. If `addCurrentGameTags()`, camera pitch, or `DefaultSdkConstants` do not exist after sync, you are still on 1.1.2 — use `implementation 'com.github.IamAki123:EasyATL:1.2.0'` and sync again.
+This documentation matches **1.2.1**. If `PoseCorrector`, `DefaultSdkConstants`, or camera pitch do not exist after sync, you are on an older tag — use `implementation 'com.github.IamAki123:EasyATL:1.2.1'` and sync again.
 
 ---
 
@@ -64,7 +64,7 @@ EasyATL outputs a field pose when tags are accepted. Between tags, keep wheel / 
 
 ## 6. Pedro Pathing (optional)
 
-Copy [`tuning/EasyATLTuning.java`](../tuning/EasyATLTuning.java) only if you already use [Pedro Pathing](https://pedropathing.com/) (`SelectableOpMode`, `Follower`). Otherwise copy [`tuning/sdk/`](../tuning/sdk/README.md).
+Copy [`tuning/pedro/PedroEasyATLTuning.java`](../tuning/pedro/PedroEasyATLTuning.java) only if you already use [Pedro Pathing](https://pedropathing.com/) (`SelectableOpMode`, `Follower`). Otherwise copy [`tuning/sdk/`](../tuning/sdk/README.md).
 
 ---
 

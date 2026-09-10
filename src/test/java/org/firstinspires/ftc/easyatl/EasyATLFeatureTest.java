@@ -347,4 +347,84 @@ public class EasyATLFeatureTest {
         assertTrue(atl.localize(Collections.singletonList(polar)));
         assertEquals(40, atl.getPose().x, INCH);
     }
+
+    @Test
+    public void smoothingAlphaZeroKeepsFirstPose() {
+        EasyATL atl = new EasyATL(ZERO, new EasyATL.Config().setSmoothingAlpha(0)
+                .setMaxRangeInches(200).setMaxBearingDegrees(180).setMaxTagYawDegrees(180))
+                .addTag(21, 0, 0, 0);
+        FieldPose first = new FieldPose(36, 0, Math.PI);
+        FieldPose second = new FieldPose(48, 0, Math.PI);
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, first))));
+        assertPose(first, atl.getPose());
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, second))));
+        assertPose(first, atl.getPose());
+    }
+
+    @Test
+    public void smoothingAlphaOneSnapsToLatestPose() {
+        EasyATL atl = open(ZERO);
+        FieldPose first = new FieldPose(36, 0, Math.PI);
+        FieldPose second = new FieldPose(48, 0, Math.PI);
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, first))));
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, second))));
+        assertPose(second, atl.getPose());
+    }
+
+    @Test
+    public void configCopyIsIndependent() {
+        EasyATL.Config original = new EasyATL.Config()
+                .setMaxRangeInches(50)
+                .setWeightRangeScaleInches(20)
+                .setQualityCountBase(0.5);
+        EasyATL.Config copy = original.copy();
+        original.setMaxRangeInches(90).setWeightRangeScaleInches(40).setQualityCountBase(1.0);
+        assertEquals(50, copy.getMaxRangeInches(), 0);
+        assertEquals(20, copy.getWeightRangeScaleInches(), 0);
+        assertEquals(0.5, copy.getQualityCountBase(), 0);
+    }
+
+    @Test
+    public void qualityCountBoostOfZeroForcesQualityZero() {
+        EasyATL atl = new EasyATL(ZERO, new EasyATL.Config().setSmoothingAlpha(1)
+                .setMaxRangeInches(200).setMaxBearingDegrees(180).setMaxTagYawDegrees(180)
+                .setQualityCountBase(0).setQualityCountPerTag(0))
+                .addTag(21, 0, 0, 0);
+        assertTrue(atl.localize(Collections.singletonList(
+                KnownPoses.observation(21, 0, 0, 0, ZERO, new FieldPose(36, 0, Math.PI)))));
+        assertEquals(0, atl.getQuality(), 1e-9);
+    }
+
+    @Test
+    public void skipsNullObservationInList() {
+        EasyATL atl = open(ZERO);
+        EasyATL.Observation good = KnownPoses.observation(21, 0, 0, 0, ZERO, new FieldPose(36, 0, Math.PI));
+        assertTrue(atl.localize(Arrays.asList(null, good)));
+        assertEquals(36, atl.getPose().x, INCH);
+    }
+
+    @Test
+    public void unreliableObservationIsRejected() {
+        EasyATL.Observation bad = new EasyATL.Observation(21, 0, 36, 0, 0, 0);
+        assertFalse(bad.reliable());
+        EasyATL atl = open(ZERO);
+        assertFalse(atl.localize(Collections.singletonList(bad)));
+        assertTrue(atl.getVisibleTags().contains(21));
+        assertTrue(atl.getAcceptedTags().isEmpty());
+    }
+
+    @Test
+    public void fieldPoseEqualsHashCodeToString() {
+        FieldPose a = new FieldPose(1, 2, 0.3);
+        FieldPose b = new FieldPose(1, 2, 0.3);
+        FieldPose c = new FieldPose(1, 2, 0.4);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertFalse(a.equals(c));
+        assertTrue(a.toString().contains("1.000"));
+    }
 }

@@ -74,6 +74,16 @@ public final class EasyATL {
             this.decisionMargin = decisionMargin;
             this.captureNanoTime = captureNanoTime;
         }
+
+        /**
+         * {@code true} when this measurement can enter the pose pipeline: all camera-frame numbers
+         * are finite and {@code range > 0}. Does not check bearing/yaw limits or tag IDs.
+         */
+        public boolean reliable() {
+            return Double.isFinite(right) && Double.isFinite(forward) && Double.isFinite(range)
+                    && Double.isFinite(bearingDegrees) && Double.isFinite(yawDegrees)
+                    && Double.isFinite(z) && range > 0;
+        }
     }
 
     /** Camera lens pose relative to robot center. */
@@ -219,6 +229,8 @@ public final class EasyATL {
         public static final double DEFAULT_WEIGHT_RANGE_SCALE_INCHES = 36;
         public static final double DEFAULT_DECISION_MARGIN_SCALE = 50;
         public static final double DEFAULT_MIN_WEIGHT = 0.05;
+        public static final double DEFAULT_QUALITY_COUNT_BASE = 0.75;
+        public static final double DEFAULT_QUALITY_COUNT_PER_TAG = 0.125;
 
         private double maxRangeInches = DEFAULT_MAX_RANGE_INCHES;
         private double maxBearingDegrees = DEFAULT_MAX_BEARING_DEGREES;
@@ -230,6 +242,8 @@ public final class EasyATL {
         private double weightRangeScaleInches = DEFAULT_WEIGHT_RANGE_SCALE_INCHES;
         private double decisionMarginScale = DEFAULT_DECISION_MARGIN_SCALE;
         private double minWeight = DEFAULT_MIN_WEIGHT;
+        private double qualityCountBase = DEFAULT_QUALITY_COUNT_BASE;
+        private double qualityCountPerTag = DEFAULT_QUALITY_COUNT_PER_TAG;
         private long maxObservationAgeMs;
         private double maxStepInches;
         private double maxStepDegrees;
@@ -350,6 +364,30 @@ public final class EasyATL {
         }
 
         /**
+         * Base term in quality {@code min(1, base + perTag * inlierCount)}. Default {@code 0.75}.
+         *
+         * @param value must be finite
+         * @return {@code this}
+         */
+        public Config setQualityCountBase(double value) {
+            requireFinite("quality count base", value);
+            qualityCountBase = value;
+            return this;
+        }
+
+        /**
+         * Per-inlier term in quality {@code min(1, base + perTag * inlierCount)}. Default {@code 0.125}.
+         *
+         * @param value must be finite
+         * @return {@code this}
+         */
+        public Config setQualityCountPerTag(double value) {
+            requireFinite("quality count per tag", value);
+            qualityCountPerTag = value;
+            return this;
+        }
+
+        /**
          * Ignore a frame if its capture timestamp is older than this. {@code 0} (default) disables
          * the check. Requires a non-zero {@code captureNanoTime} on observations or the
          * {@link EasyATL#localize(List, long)} argument.
@@ -406,6 +444,10 @@ public final class EasyATL {
         public double getDecisionMarginScale() { return decisionMarginScale; }
         /** @return minimum per-tag weight */
         public double getMinWeight() { return minWeight; }
+        /** @return quality count-boost base */
+        public double getQualityCountBase() { return qualityCountBase; }
+        /** @return quality count-boost per inlier */
+        public double getQualityCountPerTag() { return qualityCountPerTag; }
         /** @return max observation age, milliseconds; {@code 0} disables */
         public double getMaxObservationAgeMs() { return maxObservationAgeMs; }
         /** @return max XY step per frame, inches; {@code 0} unlimited */
@@ -426,6 +468,8 @@ public final class EasyATL {
                     .setWeightRangeScaleInches(weightRangeScaleInches)
                     .setDecisionMarginScale(decisionMarginScale)
                     .setMinWeight(minWeight)
+                    .setQualityCountBase(qualityCountBase)
+                    .setQualityCountPerTag(qualityCountPerTag)
                     .setMaxObservationAgeMs(maxObservationAgeMs)
                     .setMaxStepInches(maxStepInches)
                     .setMaxStepDegrees(maxStepDegrees);
@@ -652,52 +696,83 @@ public final class EasyATL {
      */
     public boolean localizeFromCameras(List<CameraObservations> frames, long frameCaptureNanoTime) {
         long now = nanoTime.getAsLong();
+        // 1. Decay quality while no new pose is accepted.
         decayConfidence(now);
-        List<TagDebug> reports = new ArrayList<>();
-        List<Integer> visible = new ArrayList<>();
-        List<Estimate> estimates = new ArrayList<>();
 
-        if (frames == null) frames = Collections.emptyList();
-        long newestCapture = frameCaptureNanoTime;
+        // 2. Build per-tag candidate estimates (filters + camera-to-field transform).
+        CandidateSet candidates = buildCandidates(frames, frameCaptureNanoTime);
+        visibleTags = Collections.unmodifiableList(candidates.visible);
+
+        if (!enabled) {
+            return failFrame(candidates.reports, "disabled");
+        }
+        if (stale(candidates.newestCapture, now)) {
+            return failFrame(candidates.reports, "stale");
+        }
+        if (candidates.estimates.isEmpty()) {
+            return failFrame(candidates.reports, null);
+        }
+
+        // 3. Robust center (medoid) of the candidates.
+        FieldPose center = robustCenter(candidates.estimates);
+        // 4. Reject outliers versus that center.
+        List<Estimate> inliers = rejectOutliers(candidates.estimates, center, candidates.reports);
+        if (inliers.isEmpty()) {
+            return failFrame(candidates.reports, null);
+        }
+
+        // 5. Weighted mean of inliers (Huber down-weight inside the inlier set).
+        FieldPose measurement = mean(inliers, center);
+        measurement = limitStep(pose, measurement);
+        // 6. Exponential smoothing toward the new measurement.
+        pose = pose == null ? measurement : blend(pose, measurement, config.getSmoothingAlpha());
+
+        // 7. Update accepted tags, uncertainty, and quality.
+        acceptedTags = acceptedIds(inliers);
+        Uncertainty uncertainty = uncertainty(inliers, measurement);
+        lastUncertainty = uncertainty;
+        confidence = scoreQuality(inliers, candidates.estimates.size(), uncertainty);
+        lastConfidenceTime = now;
+        lastDebug = new DebugFrame(true, measurement, uncertainty, Collections.unmodifiableList(candidates.reports));
+        return true;
+    }
+
+    private static final class CandidateSet {
+        final List<Integer> visible = new ArrayList<>();
+        final List<Estimate> estimates = new ArrayList<>();
+        final List<TagDebug> reports = new ArrayList<>();
+        long newestCapture;
+    }
+
+    private CandidateSet buildCandidates(List<CameraObservations> frames, long frameCaptureNanoTime) {
+        CandidateSet out = new CandidateSet();
+        out.newestCapture = frameCaptureNanoTime;
+        if (frames == null) return out;
         for (CameraObservations frame : frames) {
             if (frame == null) continue;
             List<Observation> observations = frame.observations;
             if (observations == null) continue;
             for (Observation o : observations) {
-                if (o.captureNanoTime > newestCapture) newestCapture = o.captureNanoTime;
+                if (o == null) continue;
+                if (o.captureNanoTime > out.newestCapture) out.newestCapture = o.captureNanoTime;
                 Tag tag = tags.get(o.id);
                 if (tag == null) continue;
-                visible.add(o.id);
+                out.visible.add(o.id);
                 String reason = rejectReason(o);
                 if (reason != null) {
-                    reports.add(new TagDebug(o.id, 0, reason, null));
+                    out.reports.add(new TagDebug(o.id, 0, reason, null));
                     continue;
                 }
                 FieldPose tagPose = toPose(frame.camera, tag, o);
                 double w = weight(o);
-                estimates.add(new Estimate(tagPose, w, o.id));
-                reports.add(new TagDebug(o.id, w, null, tagPose));
+                out.estimates.add(new Estimate(tagPose, w, o.id));
+                out.reports.add(new TagDebug(o.id, w, null, tagPose));
             }
         }
-        visibleTags = Collections.unmodifiableList(visible);
+        return out;
+    }
 
-        if (!enabled) {
-            acceptedTags = Collections.emptyList();
-            lastDebug = new DebugFrame(false, null, lastUncertainty, freezeReasons(reports, "disabled"));
-            return false;
-        }
-        if (stale(newestCapture, now)) {
-            acceptedTags = Collections.emptyList();
-            lastDebug = new DebugFrame(false, null, lastUncertainty, freezeReasons(reports, "stale"));
-            return false;
-        }
-        if (estimates.isEmpty()) {
-            acceptedTags = Collections.emptyList();
-            lastDebug = new DebugFrame(false, null, lastUncertainty, Collections.unmodifiableList(reports));
-            return false;
-        }
-
-        FieldPose center = robustCenter(estimates);
+    private List<Estimate> rejectOutliers(List<Estimate> estimates, FieldPose center, List<TagDebug> reports) {
         List<Estimate> inliers = new ArrayList<>();
         double outlierHeadingRadians = Math.toRadians(config.getOutlierHeadingDegrees());
         for (Estimate e : estimates) {
@@ -709,31 +784,40 @@ public final class EasyATL {
                 markRejected(reports, e.id, "outlier");
             }
         }
-        if (inliers.isEmpty()) {
-            acceptedTags = Collections.emptyList();
-            lastDebug = new DebugFrame(false, null, lastUncertainty, Collections.unmodifiableList(reports));
-            return false;
-        }
+        return inliers;
+    }
 
-        FieldPose measurement = mean(inliers, center);
-        measurement = limitStep(pose, measurement);
-        pose = pose == null ? measurement : blend(pose, measurement, config.getSmoothingAlpha());
+    private static List<Integer> acceptedIds(List<Estimate> inliers) {
         List<Integer> ids = new ArrayList<>();
-        double quality = 0;
-        for (Estimate e : inliers) {
-            ids.add(e.id);
-            quality += e.weight;
-        }
-        acceptedTags = Collections.unmodifiableList(ids);
-        quality /= inliers.size();
-        Uncertainty uncertainty = uncertainty(inliers, measurement);
-        lastUncertainty = uncertainty;
+        for (Estimate e : inliers) ids.add(e.id);
+        return Collections.unmodifiableList(ids);
+    }
+
+    private boolean failFrame(List<TagDebug> reports, String freezeReason) {
+        acceptedTags = Collections.emptyList();
+        lastDebug = new DebugFrame(false, null, lastUncertainty,
+                freezeReason == null
+                        ? Collections.unmodifiableList(reports)
+                        : freezeReasons(reports, freezeReason));
+        return false;
+    }
+
+    /**
+     * Instantaneous quality for an accepted frame.
+     *
+     * <p>{@code clamp(meanWeight * (nInliers / nEstimates) * countBoost * consistency, 0, 1)}
+     * where {@code countBoost = min(1, qualityCountBase + qualityCountPerTag * nInliers)}
+     * and {@code consistency = 1 / (1 + residualInches / outlierDistanceInches)}.</p>
+     */
+    private double scoreQuality(List<Estimate> inliers, int estimateCount, Uncertainty uncertainty) {
+        double meanWeight = 0;
+        for (Estimate e : inliers) meanWeight += e.weight;
+        meanWeight /= inliers.size();
+        double inlierRatio = (double) inliers.size() / estimateCount;
+        double countBoost = Math.min(1, config.getQualityCountBase()
+                + config.getQualityCountPerTag() * inliers.size());
         double consistency = 1.0 / (1.0 + uncertainty.residualInches / config.getOutlierDistanceInches());
-        confidence = clamp(quality * ((double) inliers.size() / estimates.size())
-                * Math.min(1, 0.75 + 0.125 * inliers.size()) * consistency, 0, 1);
-        lastConfidenceTime = now;
-        lastDebug = new DebugFrame(true, measurement, uncertainty, Collections.unmodifiableList(reports));
-        return true;
+        return clamp(meanWeight * inlierRatio * countBoost * consistency, 0, 1);
     }
 
     /**
@@ -759,7 +843,8 @@ public final class EasyATL {
 
     /**
      * Heuristic measurement quality in {@code [0, 1]}. Not a probability; decays while no new pose
-     * is accepted. Read after {@link #localize(List)}.
+     * is accepted. Instantaneous value is {@code meanWeight × inlierRatio × countBoost × consistency}
+     * (see {@link Config#setQualityCountBase(double)}). Read after {@link #localize(List)}.
      */
     public double getQuality(){decayConfidence(nanoTime.getAsLong());return confidence;}
 
@@ -812,17 +897,25 @@ public final class EasyATL {
         return ageMs > (long) config.getMaxObservationAgeMs();
     }
 
+    /**
+     * Camera-frame tag (right, forward, z) → robot frame (roll, then pitch, then yaw + mount
+     * offset) → field pose using tag XY and facing.
+     */
     private FieldPose toPose(CameraConfig cam, Tag tag, Observation o) {
+        // Camera frame: +right, +forward, +z (up).
         double x = o.right;
         double y = o.forward;
         double z = o.z;
+        // Undo roll about the optical axis.
         double cr = Math.cos(cam.rollRadians);
         double sr = Math.sin(cam.rollRadians);
         double x1 = x * cr - z * sr;
         double z1 = x * sr + z * cr;
+        // Undo pitch (optical axis tilt).
         double cp = Math.cos(cam.pitchRadians);
         double sp = Math.sin(cam.pitchRadians);
         double y2 = y * cp - z1 * sp;
+        // Undo yaw and add the lens offset vs robot center.
         double c = Math.cos(cam.yawRadians);
         double s = Math.sin(cam.yawRadians);
         double f = y2 * c + x1 * s + cam.forward;

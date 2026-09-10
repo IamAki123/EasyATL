@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Install](Install.md) · [Tuning](Tuning.md)
 
-Check **geometry in `EasyATLConstants`** (tag map and lens) before filter knobs. Do not write vision into Pedro until taped poses match. Correct only when `localize()` returns true and quality is high enough for *your* robot. A tag on screen is not an accepted estimate.
+Check **geometry in Constants** (tag map and lens) before filter knobs. Do not write vision into Pedro until taped poses match. Correct only when `localize()` returns true and quality is high enough for *your* robot. A tag on screen is not an accepted estimate.
 
 ## Symptom → check
 

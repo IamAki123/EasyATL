@@ -231,9 +231,8 @@ public final class FtcEasyATL {
     /**
      * Converts FTC detections to observations, then runs {@link EasyATL#localize(List)}.
      *
-     * <p>Detections with {@code ftcPose == null} are skipped. {@code null} is treated as no
-     * detections. Mapping is {@code ftcPose.x → right}, {@code ftcPose.y → forward}, plus
-     * {@code z}, {@code decisionMargin}, and {@code frameAcquisitionNanoTime} when present.</p>
+     * <p>Detections with {@code ftcPose == null}, non-finite camera-frame numbers, or
+     * {@code range <= 0} are skipped. {@code null} is treated as no detections.</p>
      *
      * @return {@code true} if a new pose was accepted
      */
@@ -251,13 +250,34 @@ public final class FtcEasyATL {
         return delegate.localize(values, newest);
     }
 
-    /** Package-visible mapping used by unit tests. {@code null} if {@code ftcPose} is missing. */
+    /**
+     * {@link #localize(List)} then, when a pose is accepted and quality is at least
+     * {@code minQuality}, {@link PoseCorrector#apply(FieldPose)}.
+     *
+     * @param minQuality sample gate (the library itself has none); use {@code 0} to apply on every accept
+     */
+    public boolean localize(List<AprilTagDetection> detections, PoseCorrector corrector, double minQuality) {
+        boolean accepted = localize(detections);
+        if (corrector != null && accepted && hasPose() && getQuality() >= minQuality) {
+            corrector.apply(getPose());
+        }
+        return accepted;
+    }
+
+    /** Package-visible mapping used by unit tests. {@code null} if the detection cannot be used. */
     static EasyATL.Observation observationOrNull(AprilTagDetection detection) {
         if (detection == null || detection.ftcPose == null) return null;
-        return new EasyATL.Observation(detection.id, detection.ftcPose.x,
+        if (!Double.isFinite(detection.ftcPose.x) || !Double.isFinite(detection.ftcPose.y)
+                || !Double.isFinite(detection.ftcPose.range) || !Double.isFinite(detection.ftcPose.bearing)
+                || !Double.isFinite(detection.ftcPose.yaw)) {
+            return null;
+        }
+        if (detection.ftcPose.range <= 0) return null;
+        EasyATL.Observation observation = new EasyATL.Observation(detection.id, detection.ftcPose.x,
                 detection.ftcPose.y, detection.ftcPose.range, detection.ftcPose.bearing,
                 detection.ftcPose.yaw, detection.ftcPose.z, detection.decisionMargin,
                 detection.frameAcquisitionNanoTime);
+        return observation.reliable() ? observation : null;
     }
 
     /**

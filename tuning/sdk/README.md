@@ -22,4 +22,4 @@ Copy `EasyATLSdkConstants.java` only when you need different lens numbers, webca
 3. After Play, D-pad up/down = small step, left/right = large step on that knob. Telemetry shows PASS-style OK/REJECT per tag, residual, and a Config snippet (paste into `EasyATLSdkConstants.config()` once you have copied that file).
 4. There is no drivetrain here — push the robot or run your own TeleOp beside it.
 
-Pedro teams can keep using [`../EasyATLTuning.java`](../EasyATLTuning.java) instead.
+Pedro teams can keep using [`../pedro/PedroEasyATLTuning.java`](../pedro/PedroEasyATLTuning.java) instead.

@@ -126,4 +126,40 @@ public class FtcEasyATLTest {
         assertEquals(0.0, cam.forward, 0.0);
         assertEquals("Webcam 1", DefaultSdkConstants.WEBCAM_NAME);
     }
+
+    @Test
+    public void observationOrNullRejectsNonFiniteAndNonPositiveRange() {
+        assertNull(FtcEasyATL.observationOrNull(detection(21, pose(0, 36, 0, 0, 0))));
+        assertNull(FtcEasyATL.observationOrNull(detection(21,
+                new AprilTagPoseFtc(Double.NaN, 36, 0, 0, 0, 0, 36, 0, 0))));
+    }
+
+    @Test
+    public void localizeAppliesPoseCorrectorWhenQualityPasses() {
+        FtcEasyATL atl = new FtcEasyATL(new EasyATL.CameraConfig(0, 0, 0),
+                new EasyATL.Config().setSmoothingAlpha(1).setMaxRangeInches(200)
+                        .setMaxBearingDegrees(180).setMaxTagYawDegrees(180))
+                .addTag(21, 0, 0, 0);
+        RecordingCorrector corrector = new RecordingCorrector();
+        EasyATL.Observation expected = KnownPoses.observation(21, 0, 0, 0,
+                new EasyATL.CameraConfig(0, 0, 0), new FieldPose(36, 0, Math.PI));
+        AprilTagDetection d = detection(21, pose(expected.right, expected.forward,
+                expected.range, expected.bearingDegrees, expected.yawDegrees));
+        assertTrue(atl.localize(Collections.singletonList(d), corrector, 0));
+        assertEquals(1, corrector.calls);
+        assertEquals(36, corrector.last.x, 0.08);
+        assertTrue(atl.localize(Collections.singletonList(d), corrector, 2));
+        assertEquals(1, corrector.calls);
+    }
+
+    private static final class RecordingCorrector implements PoseCorrector {
+        int calls;
+        FieldPose last;
+
+        @Override
+        public void apply(FieldPose vision) {
+            calls++;
+            last = vision;
+        }
+    }
 }

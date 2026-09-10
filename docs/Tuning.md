@@ -1,8 +1,8 @@
 # Tuning EasyATL
 
-[README](../README.md) · [Pedro files](../tuning/README.md) · [SDK files](../tuning/sdk/README.md) · [Sample OpMode](SampleOpMode.md)
+[README](../README.md) · [Pedro files](../tuning/pedro/README.md) · [SDK files](../tuning/sdk/README.md) · [Sample OpMode](SampleOpMode.md)
 
-`EasyATLTuning` (Pedro) and `EasyATLSdkTuner` (plain FTC SDK) are for the practice field or pit. Do not select them during a match. Match TeleOp and auto should call `FtcEasyATL.localize(...)`.
+`PedroEasyATLTuning` (Pedro) and `EasyATLSdkTuner` (plain FTC SDK) are for the practice field or pit. Do not select them during a match. Match TeleOp and auto should call `FtcEasyATL.localize(...)`.
 
 > **Geometry first.** Filtering cannot fix a wrong camera mount, camera yaw/**pitch**, or AprilTag field pose. Confirm IDs, tag X/Y/facing, and **lens** forward/right/yaw/pitch with a tape (and **Vision telemetry**) before turning knobs. The housing is not the lens.
 
@@ -10,7 +10,7 @@
 
 ## Copy these files
 
-**Pedro:** copy [`EasyATLConstants.java`](../tuning/EasyATLConstants.java) and [`EasyATLTuning.java`](../tuning/EasyATLTuning.java) into TeamCode in the **same package**. Pedro still needs that constants file (webcam helper and follower live there).
+**Pedro:** copy [`PedroEasyATLConstants.java`](../tuning/pedro/PedroEasyATLConstants.java) and [`PedroEasyATLTuning.java`](../tuning/pedro/PedroEasyATLTuning.java) into TeamCode in the **same package**. Fill in `createFollower`. **Vision telemetry** does not create a follower.
 
 **Road Runner / no Pedro:** copy [`EasyATLSdkTuner.java`](../tuning/sdk/EasyATLSdkTuner.java) (and optionally the [SDK sample](SampleOpModeSdk.md)). You do **not** have to copy a constants file — see [AAR defaults](#aar-defaults-no-constants-file). No drivetrain in the tuner — D-pad picks a knob in init, then changes that value after Play.
 
@@ -21,7 +21,7 @@ Requires Pedro Pathing (`SelectableOpMode`) only for the Pedro tuner. Keep drive
 ```text
 DefaultSdkConstants (AAR)          SDK tuner / sample
   or EasyATLSdkConstants      →    pick test, paste snippet
-  or EasyATLConstants (Pedro)      Match TeleOp: localize(...)
+  or PedroEasyATLConstants (Pedro)  Match TeleOp: localize(...)
 ```
 
 `config()` is a method on the constants class you are using, not a separate file. After the tuner prints a snippet, paste it into that method.
@@ -29,9 +29,11 @@ DefaultSdkConstants (AAR)          SDK tuner / sample
 **Pedro** match OpModes should already call:
 
 ```java
-follower = EasyATLConstants.createFollower(hardwareMap);
-webcam = EasyATLConstants.createWebcam(hardwareMap, telemetry);
-localizer = EasyATLConstants.createLocalizer(EasyATLConstants.config());
+follower = PedroEasyATLConstants.createFollower(hardwareMap);
+processor = PedroEasyATLConstants.createProcessor();
+portal = PedroEasyATLConstants.createPortal(hardwareMap, processor, telemetry);
+localizer = PedroEasyATLConstants.createLocalizer(PedroEasyATLConstants.config());
+corrector = new PedroPoseCorrector(follower);
 ```
 
 **SDK** match OpModes can start with the AAR (`DefaultSdkConstants` / `new FtcEasyATL()`). After you copy Constants, change those calls in `init()` — exact lines: [Where to switch](#where-to-switch-to-easyatlsdkconstants).
@@ -102,7 +104,7 @@ localizer = EasyATLSdkConstants.createLocalizer(EasyATLSdkConstants.config());
 
 Processor and portal helpers in the copy-in file still delegate to the AAR. Camera, webcam name, tags, and `config()` are what you override in `EasyATLSdkConstants`.
 
-Pedro teams cannot skip constants: `EasyATLConstants` still holds your webcam helper and Pedro follower. That file is not in the AAR.
+Pedro teams cannot skip constants: `PedroEasyATLConstants` still holds your Pedro follower factory. That file is not in the AAR.
 
 Tag-map choices: [AprilTag field sets](FieldTagSets.md). Method list: [API](API.md#defaultsdkconstants).
 
@@ -151,11 +153,11 @@ On filter tests, the D-pad **no longer** means select/back. It changes the curre
 | Left / right | Large step                |
 
 
-Range, bearing, yaw, outlier, smoothing, and quality tests print a Config snippet to paste into `EasyATLConstants.config()` (Pedro) or `EasyATLSdkConstants.config()` (SDK override). Vision telemetry does not. If you are still on AAR defaults, copy `EasyATLSdkConstants` before pasting.
+Range, bearing, yaw, outlier, smoothing, and quality tests print a Config snippet to paste into `PedroEasyATLConstants.config()` (Pedro) or `EasyATLSdkConstants.config()` (SDK override). Vision telemetry does not. If you are still on AAR defaults, copy `EasyATLSdkConstants` before pasting.
 
 ## Library Config defaults
 
-Filter knobs when you call `new EasyATL.Config()`, `DefaultSdkConstants.config()`, or `new FtcEasyATL()` (no custom config). The copy-in `EasyATLConstants.config()` / `EasyATLSdkConstants.config()` samples use 72 in range and 0.70 smoothing instead:
+Filter knobs when you call `new EasyATL.Config()`, `DefaultSdkConstants.config()`, or `new FtcEasyATL()` (no custom config). The copy-in `PedroEasyATLConstants.config()` / `EasyATLSdkConstants.config()` samples use 72 in range and 0.70 smoothing instead:
 
 
 | Setting               | Default         |
@@ -244,7 +246,7 @@ Stop when:
 - Bad views are rejected
 - You are not still chasing a constant offset (that is still geometry)
 
-Then paste the tuner’s Config snippet into `EasyATLConstants.config()` (Pedro) or `EasyATLSdkConstants.config()` (SDK override). If you never copied a constants file, copy `EasyATLSdkConstants` now so you have a place to paste, or call `setConfig(...)` on the localizer in `init()`.
+Then paste the tuner’s Config snippet into `PedroEasyATLConstants.config()` (Pedro) or `EasyATLSdkConstants.config()` (SDK override). If you never copied a constants file, copy `EasyATLSdkConstants` now so you have a place to paste, or call `setConfig(...)` on the localizer in `init()`.
 
 ## Measuring accuracy
 

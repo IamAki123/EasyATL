@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Install](Install.md) · [What each file does](LibraryFiles.md) · [Sample OpMode](SampleOpMode.md)
 
-**Most FTC teams can skip this page.** SDK / Road Runner: `new FtcEasyATL()` or `DefaultSdkConstants.createLocalizer()` works with no TeamCode constants file. Override later by copying [`EasyATLSdkConstants`](../tuning/sdk/EasyATLSdkConstants.java). Pedro: put camera, tags, and `EasyATL.Config` in [`EasyATLConstants`](../tuning/EasyATLConstants.java). For a short “which class do I use?” overview, see [What each file does](LibraryFiles.md).
+**Most FTC teams can skip this page.** SDK / Road Runner: `new FtcEasyATL()` or `DefaultSdkConstants.createLocalizer()` works with no TeamCode constants file. Override later by copying [`EasyATLSdkConstants`](../tuning/sdk/EasyATLSdkConstants.java). Pedro: put camera, tags, and `EasyATL.Config` in [`PedroEasyATLConstants`](../tuning/pedro/PedroEasyATLConstants.java). For a short “which class do I use?” overview, see [What each file does](LibraryFiles.md).
 
 | | |
 | --- | --- |
@@ -13,7 +13,7 @@
 
 Fluent setters (`addTag`, `setConfig`, `setMaxRangeInches`, `setSmoothingAlpha`, `setCameraConfig`) return `this` so they can be chained. Pipeline thresholds belong on `EasyATL.Config`; `addTag()` is field geometry.
 
-**On this page:** [Config](#config) · [CameraConfig](#cameraconfig) · [Observation](#observation) · [EasyATL](#easyatl) · [FtcEasyATL](#ftceasyatl) · [DefaultSdkConstants](#defaultsdkconstants) · [FieldTags](#fieldtags) · [EasyATLObservations](#easyatlobservations) · [FieldPose](#fieldpose) · [Debug](#debug)
+**On this page:** [Config](#config) · [CameraConfig](#cameraconfig) · [Observation](#observation) · [EasyATL](#easyatl) · [FtcEasyATL](#ftceasyatl) · [DefaultSdkConstants](#defaultsdkconstants) · [PoseCorrector](#posecorrector) · [FieldTags](#fieldtags) · [EasyATLObservations](#easyatlobservations) · [FieldPose](#fieldpose) · [Debug](#debug)
 
 Formulas: [Math](Math.md). Field maps: [AprilTag field sets](FieldTagSets.md).
 
@@ -23,7 +23,7 @@ Formulas: [Math](Math.md). Field maps: [AprilTag field sets](FieldTagSets.md).
 Tunable localization pipeline. Construct with `new EasyATL.Config()` and override only what you need. The localizer **copies** the object, so later edits to your `Config` instance do not apply until you pass it again with `setConfig()`.
 
 ```java
-// Library defaults. The copy-in EasyATLConstants.config() sample uses
+// Library defaults. The copy-in PedroEasyATLConstants.config() sample uses
 // setMaxRangeInches(72) and setSmoothingAlpha(0.70) as a starting point.
 EasyATL.Config config = new EasyATL.Config()
         .setMaxRangeInches(96)
@@ -49,6 +49,7 @@ EasyATL.Config config = new EasyATL.Config()
 | `setWeightRangeScaleInches(value)` | 36 | Range scale in `1 / (1 + (range/scale)²)`. | Must be `> 0`. Larger keeps far tags heavier. |
 | `setDecisionMarginScale(value)` | 50 | Margin that counts as full weight. | Must be `> 0`. Margin `≤ 0` is ignored. |
 | `setMinWeight(value)` | 0.05 | Floor on per-tag weight. | Clamped to `[0, 1]`. |
+| `setQualityCountBase(value)` / `setQualityCountPerTag(value)` | 0.75 / 0.125 | Quality `countBoost = min(1, base + perTag × nInliers)`. | Must be finite. Defaults keep 1.1.x single-tag quality. |
 | `setMaxObservationAgeMs(value)` | 0 | Drop frames older than this. | `0` disables. Needs a capture timestamp. |
 | `setMaxStepInches(value)` / `setMaxStepDegrees(value)` | 0 | Clamp XY / heading change per accepted frame. | `0` unlimited. First pose is never clamped. |
 | `copy()` | — | Returns an independent snapshot. | Getters (`getMaxRangeInches()`, …) read the current values. |
@@ -104,7 +105,7 @@ new EasyATL.Observation(int id, double right, double forward, double range,
 | `decisionMargin` | FTC detector score. `≤ 0` is ignored. Default `0`. |
 | `captureNanoTime` | Capture time, or `0` if unknown. |
 
-**Caveats:** `bearingDegrees` and `yawDegrees` are **degrees**. Field headings elsewhere in the API are **radians**. The constructor does not validate. `localize()` ignores non-finite values and `range <= 0` (they never become a pose).
+**Caveats:** `bearingDegrees` and `yawDegrees` are **degrees**. Field headings elsewhere in the API are **radians**. `reliable()` is `true` when numbers are finite and `range > 0`. `localize()` ignores non-finite values and `range <= 0` (they never become a pose).
 
 ### `EasyATL`
 <a id="easyatl"></a>
@@ -210,7 +211,7 @@ Fuses configured, in-range, consistent tags from this frame into a field pose.
 
 Heuristic measurement quality in `[0, 1]`.
 
-**Returns:** a score from inlier count, per-tag weights, and time since the last accepted pose.
+**Returns:** a score from mean inlier weight, inlier ratio, `countBoost` (`qualityCountBase` + `qualityCountPerTag × n`), residual consistency, and time since the last accepted pose. Formula: [Math](Math.md#11-quality-not-a-probability).
 
 **Caveats:** not a probability and not calibrated. While no new pose is accepted it decays as `e^{-qualityDecayRate · t}` (default rate 0.8/sec). Read it after `localize()`.
 
@@ -259,7 +260,11 @@ Converts FTC detections to observations, then runs `EasyATL.localize()`.
 
 **Returns:** `true` if a new pose was accepted this call.
 
-**Caveats:** detections with `ftcPose == null` are skipped (common when the SDK has an ID but no pose). Mapping is `ftcPose.x → right`, `ftcPose.y → forward`, plus `range`, `bearing`, `yaw`, `z`, `decisionMargin`, and `frameAcquisitionNanoTime`. Call after the webcam/processor has been updated for this loop.
+**Caveats:** detections with `ftcPose == null`, non-finite camera-frame numbers, or `range <= 0` are skipped. Mapping is `ftcPose.x → right`, `ftcPose.y → forward`, plus `range`, `bearing`, `yaw`, `z`, `decisionMargin`, and `frameAcquisitionNanoTime`. Call after the webcam/processor has been updated for this loop.
+
+#### `localize(List detections, PoseCorrector corrector, double minQuality)`
+
+Same as `localize(detections)`, then `corrector.apply(getPose())` when the pose was accepted and `getQuality() >= minQuality`. `corrector` may be `null` (no apply).
 
 #### `getPose()` / `hasPose()` / `getVisibleTags()` / `getAcceptedTags()` / `getQuality()` / `getConfidence()` / `getDebug()` / `getUncertainty()`
 
@@ -282,6 +287,11 @@ Shipped in the AAR so SDK OpModes compile without a TeamCode constants file.
 
 Copy [`tuning/sdk/EasyATLSdkConstants.java`](../tuning/sdk/EasyATLSdkConstants.java) into TeamCode when you need different lens numbers, webcam name, or tags. When to skip vs copy: [Tuning → AAR defaults](Tuning.md#aar-defaults-no-constants-file).
 
+### `PoseCorrector`
+<a id="posecorrector"></a>
+
+One-method interface: `apply(FieldPose vision)`. The AAR has no Pedro or Road Runner implementation. Copy-in: [`PedroPoseCorrector`](../tuning/pedro/PedroPoseCorrector.java). Road Runner teams implement this in TeamCode (`drive.setPoseEstimate(...)`).
+
 ### `FieldPose`
 <a id="fieldpose"></a>
 
@@ -297,7 +307,7 @@ new FieldPose(double x, double y, double heading)
 | `heading` | Robot heading in radians, CCW-positive, `0` along field `+X`. |
 | `headingDegrees()` | Same heading in degrees. |
 
-**Caveats:** `heading` is **radians**, not degrees. Convert with `pose.headingDegrees()` or `Math.toDegrees(pose.heading)` for telemetry. EasyATL does not depend on Pedro or Road Runner; convert at the call site (`new Pose(pose.x, pose.y, pose.heading)` or `new Pose2d(...)`).
+**Caveats:** `heading` is **radians**, not degrees. Convert with `pose.headingDegrees()` or `Math.toDegrees(pose.heading)` for telemetry. `x`, `y`, and `heading` must be finite. `equals` / `hashCode` / `toString` compare the stored numbers (heading is not wrapped in `equals`). EasyATL does not depend on Pedro or Road Runner; convert at the call site (`PoseCorrector`, `new Pose(...)`, or `new Pose2d(...)`).
 
 ### `FieldTags`
 <a id="fieldtags"></a>

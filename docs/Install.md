@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Sample OpMode](SampleOpMode.md) · [Troubleshooting](Troubleshooting.md)
 
-Current JitPack version: **1.2.0** (must match a [git tag](https://github.com/IamAki123/EasyATL/releases)).
+Current JitPack version: **1.2.1** (must match a [git tag](https://github.com/IamAki123/EasyATL/releases)).
 
 ## What you need
 
@@ -50,7 +50,7 @@ In `TeamCode/build.gradle`:
 ```gradle
 dependencies {
     implementation project(':FtcRobotController')
-    implementation 'com.github.IamAki123:EasyATL:1.2.0'
+    implementation 'com.github.IamAki123:EasyATL:1.2.1'
 }
 ```
 
@@ -62,7 +62,7 @@ File → Sync Project with Gradle Files.
 
 **You are done when** the project syncs and Android Studio can autocomplete `org.firstinspires.ftc.easyatl.FtcEasyATL`.
 
-Next: SDK / Road Runner can call `new FtcEasyATL()` or `DefaultSdkConstants.createLocalizer()` immediately. Pedro teams copy [`EasyATLConstants`](../tuning/EasyATLConstants.java). Continue in the [README](../README.md) (**2. Configure the robot once**).
+Next: SDK / Road Runner can call `new FtcEasyATL()` or `DefaultSdkConstants.createLocalizer()` immediately. Pedro teams copy [`PedroEasyATLConstants`](../tuning/pedro/PedroEasyATLConstants.java). Continue in the [README](../README.md) (**2. Configure the robot once**).
 
 ## Optional: local module
 

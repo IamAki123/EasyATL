@@ -20,6 +20,7 @@ AprilTagProcessor.getDetections()
 
 FieldTags              ←  official tag X/Y/facing (optional)
 DefaultSdkConstants    ←  AAR camera / webcam / latest-season defaults
+PoseCorrector          ←  apply FieldPose to any drivetrain (optional)
 EasyATLObservations    ←  Limelight / non-FTC detections (optional)
 ```
 
@@ -136,7 +137,7 @@ If you already trust Limelight MegaTag **botpose** (a finished field pose), you 
 
 | Location | What it is |
 | --- | --- |
-| [`tuning/EasyATLConstants.java`](../tuning/EasyATLConstants.java) + [`EasyATLTuning.java`](../tuning/EasyATLTuning.java) | Pedro practice tuner — copy into TeamCode |
+| [`tuning/pedro/`](../tuning/pedro/README.md) | Pedro constants, tuner, `PedroPoseCorrector`, sample — copy into TeamCode |
 | [`tuning/sdk/`](../tuning/sdk/README.md) | Same knobs with VisionPortal, no Pedro |
 | `src/test/...` | Unit tests; not shipped to the robot |
 
